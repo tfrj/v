@@ -25,7 +25,6 @@
 
         .system-wrapper { width: 100%; max-width: 520px; position: relative; }
 
-        /* --- التلفزيون الكلاسيكي --- */
         .crt-tv {
             background: #222;
             padding: 15px; border-radius: 12px;
@@ -52,7 +51,6 @@
             text-shadow: 0 0 10px rgba(255,255,255,0.5); z-index: 1;
         }
 
-        /* --- مشغل VHS البسيط --- */
         .vhs-deck {
             background: #151515; margin-top: 10px;
             padding: 20px; border-radius: 5px;
@@ -123,14 +121,13 @@
         </div>
         
         <div class="control-btns">
-            <button onclick="updateDB()">PLAY / SYNC</button>
+            <button onclick="updateDB()">LOAD TAPE</button>
             <button class="eject-btn" onclick="clearDB()">EJECT</button>
         </div>
     </div>
 </div>
 
 <script>
-    /* --- كودك الأصلي (لا تعديل في الوظائف) --- */
     const passwordSecret = "1234"; 
     let isAuthorized = false;
 
@@ -191,20 +188,37 @@
         }
 
         isRemoteChange = true;
+        
+        // تحميل الفيديو بدون تشغيل تلقائي
         if (data.url && video.src !== data.url && !video.src.includes(data.url)) {
             if(isAuthorized) urlInput.value = data.url;
             loadVideo(data.url);
         }
+
+        // مزامنة الوقت
         if (Math.abs(video.currentTime - data.currentTime) > 2.0) {
             video.currentTime = data.currentTime;
         }
-        data.isPlaying ? video.play().catch(() => {}) : video.pause();
+
+        // التحكم في التشغيل/الإيقاف بناءً على حالة Firebase
+        if (data.isPlaying) {
+            video.play().catch(() => {
+                console.log("التشغيل التلقائي محظور من المتصفح حتى يتفاعل المستخدم");
+            });
+        } else {
+            video.pause();
+        }
+
         setTimeout(() => { isRemoteChange = false; }, 500);
     });
 
     function sendSyncUpdate() {
         if (isRemoteChange || !isAuthorized) return; 
-        syncRef.update({ currentTime: video.currentTime, isPlaying: !video.paused, lastUpdated: Date.now() });
+        syncRef.update({ 
+            currentTime: video.currentTime, 
+            isPlaying: !video.paused, 
+            lastUpdated: Date.now() 
+        });
     }
 
     video.onplay = sendSyncUpdate;
@@ -224,13 +238,21 @@
                 hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
             } else { video.src = url; }
         } else { video.src = url; }
+        // تأكيد بقاء الفيديو متوقفاً عند التحميل الجديد
+        video.pause(); 
     }
 
     function updateDB() {
         if (!isAuthorized) { alert("ENTER ACCESS CODE FIRST"); return; }
         const newUrl = urlInput.value.trim();
         if (newUrl) {
-            syncRef.set({ url: newUrl, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            // هنا جعلنا isPlaying: false لكي لا يشتغل عند الجميع فوراً
+            syncRef.set({ 
+                url: newUrl, 
+                currentTime: 0, 
+                isPlaying: false, 
+                lastUpdated: Date.now() 
+            });
         }
     }
 
