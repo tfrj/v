@@ -3,126 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retro VHS Master</title>
+    <title>Smart Player - VHS Sync</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
         :root { 
-            --tv-black: #121212;
-            --led-green: #39ff14;
-            --accent-red: #ff3c3c;
+            --ios-bg: #0a0a0a; 
+            --vhs-gray: #2b2b2b; 
+            --vhs-blue: #0000FF; /* لون شاشة الخطأ القديمة */
+            --ios-accent: #0A84FF; 
+            --ios-red: #FF3B30; 
+            --ios-green: #34C759; 
         }
         
-        body { 
-            background: #0a0a0a; 
-            font-family: 'Courier New', monospace; 
-            display: flex; justify-content: center; align-items: center; 
-            min-height: 100vh; margin: 0; padding: 20px; 
-            background-image: radial-gradient(circle at center, #1c1c1c 0%, #000 100%);
-        }
-
-        .system-wrapper { width: 100%; max-width: 520px; position: relative; }
-
-        .crt-tv {
-            background: #222;
-            padding: 15px; border-radius: 12px;
-            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), 0 10px 40px rgba(0,0,0,0.8);
-            border: 2px solid #333; position: relative;
-        }
-
-        .tv-screen-area {
-            background: #000; padding: 10px; border-radius: 5px;
-            border: 8px solid #1a1a1a; position: relative; overflow: hidden;
-            aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center;
-        }
-
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; }
-
-        .scanlines {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
-            background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2;
-        }
-
-        #error-message {
-            position: absolute; color: #fff; font-size: 22px; text-align: center;
-            text-shadow: 0 0 10px rgba(255,255,255,0.5); z-index: 1;
-        }
-
+        body { font-family: 'Courier New', Courier, monospace; background-color: var(--ios-bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 500px; }
+        
+        /* تصميم مشغل VHS */
         .vhs-deck {
-            background: #151515; margin-top: 10px;
-            padding: 20px; border-radius: 5px;
-            border: 1px solid #252525; border-bottom: 5px solid #000;
-            box-shadow: 0 15px 30px rgba(0,0,0,0.7);
-        }
-
-        .status-bar {
-            background: #050a05; border: 1px solid #1a1a1a;
-            padding: 6px 12px; color: var(--led-green); font-size: 11px;
-            margin-bottom: 15px; display: flex; justify-content: space-between;
-            text-shadow: 0 0 5px var(--led-green); border-radius: 2px;
-        }
-
-        .tape-input-slot {
-            background: #000; border: 2px solid #2a2a2a; height: 50px;
-            display: flex; align-items: center; padding: 0 15px;
-            margin-bottom: 15px; box-shadow: inset 0 5px 15px #000;
+            background: linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 100%);
+            border-radius: 10px;
+            padding: 30px 20px;
+            border-bottom: 4px solid #000;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), 0 10px 20px rgba(0,0,0,0.5);
             position: relative;
         }
 
-        .tape-input-slot::before {
-            content: "▲ INSERT CODE / URL"; font-size: 8px; color: #444;
-            position: absolute; top: -14px; left: 5px;
+        /* فتحة الشريط (مكان إدخال الرابط) */
+        .vhs-slot {
+            background: #000;
+            border: 3px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            position: relative;
+            box-shadow: inset 0 5px 15px rgba(0,0,0,1);
         }
 
-        input {
-            width: 100%; background: transparent; border: none;
-            color: var(--led-green); font-family: inherit; font-size: 14px;
-            outline: none; text-align: center;
+        .vhs-slot::after {
+            content: "INSERT CASSETTE ▲";
+            position: absolute;
+            top: -20px;
+            left: 10px;
+            font-size: 10px;
+            color: #888;
         }
 
-        .control-btns { display: flex; gap: 10px; }
-
-        button {
-            flex: 2; padding: 12px; background: #252525; border: 1px solid #333;
-            color: #eee; cursor: pointer; font-weight: bold; font-size: 11px;
-            border-radius: 3px; box-shadow: 0 3px 0 #000;
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            background: transparent; 
+            border: none; 
+            color: #00FF00; /* لون أخضر فسفوري قديم */
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            text-align: center; 
+            outline: none; 
+            box-sizing: border-box;
+            text-transform: uppercase;
         }
 
-        button:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+        input::placeholder { color: #333; }
+
+        .button-group { display: flex; gap: 10px; margin-top: 20px; }
         
-        button.eject-btn {
-            flex: 1; color: var(--accent-red); border-color: #400;
+        button { 
+            flex: 2; 
+            padding: 12px; 
+            border-radius: 5px; 
+            border: 1px solid #555; 
+            background: #333; 
+            color: #ddd; 
+            font-weight: bold; 
+            cursor: pointer; 
+            box-shadow: 0 4px 0 #111;
+            text-transform: uppercase;
+            font-size: 12px;
         }
 
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #111; }
+        button.delete-btn { flex: 1; color: var(--ios-red); }
+
+        /* منطقة الفيديو وتأثير VHS */
+        .video-wrapper { 
+            width: 100%; 
+            border-radius: 5px; 
+            overflow: hidden; 
+            background: var(--vhs-blue); 
+            margin-bottom: 25px; 
+            position: relative; 
+            aspect-ratio: 16 / 9;
+            border: 8px solid #1a1a1a;
+        }
+        
+        video { width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        
+        /* تأثير التشويش فوق الفيديو */
+        .vhs-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+            z-index: 2;
+            opacity: 0.4;
+        }
+
+        #error-message {
+            position: absolute;
+            color: white;
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            text-align: center;
+            z-index: 0;
+            text-shadow: 2px 2px #000;
+        }
+
+        .status-container { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px; font-size: 12px; color: #aaa; }
+        .viewer-count { color: var(--ios-green); }
     </style>
 </head>
 <body>
 
-<div class="system-wrapper">
-    <div class="crt-tv">
-        <div class="tv-screen-area">
-            <div class="scanlines"></div>
-            <div id="error-message">SYSTEM STANDBY<br>1998-01-13</div>
-            <video id="video" controls playsinline muted></video>
-        </div>
+<div class="container">
+    <div class="status-container">
+        <div id="connectionStatus">SYSTEM: READY</div>
+        <div class="viewer-count">LIVE USERS: <span id="count">1</span></div>
+    </div>
+    
+    <div class="video-wrapper">
+        <div class="vhs-overlay"></div>
+        <div id="error-message">NO SIGNAL<br>1998-01-12</div>
+        <video id="video" controls playsinline muted></video>
     </div>
 
     <div class="vhs-deck">
-        <div class="status-bar">
-            <span id="connectionStatus">READY</span>
-            <span>VIEWERS: <span id="count">1</span></span>
-        </div>
-        
-        <div class="tape-input-slot">
+        <div class="vhs-slot">
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         
-        <div class="control-btns">
-            <button onclick="updateDB()">LOAD TAPE</button>
-            <button class="eject-btn" onclick="clearDB()">EJECT</button>
+        <div class="button-group">
+            <button onclick="updateDB()">PLAY / SYNC</button>
+            <button class="delete-btn" onclick="clearDB()">EJECT</button>
         </div>
     </div>
 </div>
@@ -131,6 +154,7 @@
     const passwordSecret = "1234"; 
     let isAuthorized = false;
 
+    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -171,15 +195,18 @@
             isAuthorized = true;
             urlInput.value = ""; 
             urlInput.type = "text"; 
-            urlInput.placeholder = "PASTE VIDEO URL";
-            statusBadge.innerText = "ADMIN MODE";
+            urlInput.placeholder = "PASTE URL HERE";
+            urlInput.style.color = "#00FF00";
+            statusBadge.innerText = "SYSTEM: ADMIN MODE";
         }
     });
 
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
+        
         if (!data || !data.url) {
-            video.src = ""; video.style.display = "none";
+            video.src = "";
+            video.style.display = "none";
             errorMessage.style.display = "block";
             return;
         } else {
@@ -188,25 +215,21 @@
         }
 
         isRemoteChange = true;
-        
-        // تحميل الفيديو بدون تشغيل تلقائي
+
         if (data.url && video.src !== data.url && !video.src.includes(data.url)) {
             if(isAuthorized) urlInput.value = data.url;
             loadVideo(data.url);
         }
 
-        // مزامنة الوقت
-        if (Math.abs(video.currentTime - data.currentTime) > 2.0) {
+        const timeDiff = Math.abs(video.currentTime - data.currentTime);
+        if (timeDiff > 2.0) {
             video.currentTime = data.currentTime;
         }
 
-        // التحكم في التشغيل/الإيقاف بناءً على حالة Firebase
         if (data.isPlaying) {
-            video.play().catch(() => {
-                console.log("التشغيل التلقائي محظور من المتصفح حتى يتفاعل المستخدم");
-            });
+            if (video.paused) video.play().catch(() => {});
         } else {
-            video.pause();
+            if (!video.paused) video.pause();
         }
 
         setTimeout(() => { isRemoteChange = false; }, 500);
@@ -214,10 +237,10 @@
 
     function sendSyncUpdate() {
         if (isRemoteChange || !isAuthorized) return; 
-        syncRef.update({ 
-            currentTime: video.currentTime, 
-            isPlaying: !video.paused, 
-            lastUpdated: Date.now() 
+        syncRef.update({
+            currentTime: video.currentTime,
+            isPlaying: !video.paused,
+            lastUpdated: Date.now()
         });
     }
 
@@ -235,30 +258,38 @@
         hls.destroy();
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) {
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-            } else { video.src = url; }
-        } else { video.src = url; }
-        // تأكيد بقاء الفيديو متوقفاً عند التحميل الجديد
-        video.pause(); 
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+            } else {
+                video.src = url;
+            }
+        } else {
+            video.src = url;
+        }
     }
 
     function updateDB() {
-        if (!isAuthorized) { alert("ENTER ACCESS CODE FIRST"); return; }
+        if (!isAuthorized) {
+            alert("WRONG PASSWORD");
+            return;
+        }
         const newUrl = urlInput.value.trim();
         if (newUrl) {
-            // هنا جعلنا isPlaying: false لكي لا يشتغل عند الجميع فوراً
-            syncRef.set({ 
-                url: newUrl, 
-                currentTime: 0, 
-                isPlaying: false, 
-                lastUpdated: Date.now() 
+            syncRef.set({
+                url: newUrl,
+                currentTime: 0,
+                isPlaying: true, 
+                lastUpdated: Date.now()
             });
         }
     }
 
     function clearDB() {
         if (!isAuthorized) return;
-        if (confirm("EJECT FOR EVERYONE?")) syncRef.set(null);
+        if (confirm("EJECT TAPE FOR EVERYONE?")) {
+            syncRef.set(null);
+        }
     }
 </script>
 </body>
