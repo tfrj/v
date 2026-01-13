@@ -81,12 +81,12 @@
     const adminPanel = document.getElementById('adminPanel');
     
     const adminEmail = "t@t.tt";
-    const passwordSecret = "tttttt"; 
+    // ملاحظة: تم حذف passwordSecret من هنا لغرض التشفير والأمان
     
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
-    let heartbeatInterval = null; // الميزة الجديدة لمزامنة الوقت دورياً
+    let heartbeatInterval = null;
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
@@ -102,7 +102,6 @@
         statusBadge.innerText = "STATUS: ADMIN MODE";
         adminPanel.style.display = "flex";
 
-        // تحديث قاعدة البيانات كل 5 ثوانٍ لضمان بقاء المشاهدين على نفس التوقيت
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = setInterval(() => {
             if (isAuthorized && !video.paused) {
@@ -121,9 +120,13 @@
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
-        if (!isAuthorized && val === passwordSecret) {
-            auth.signInWithEmailAndPassword(adminEmail, passwordSecret)
-                .catch(error => { alert("Authentication Failed: " + error.message); });
+        
+        // التحقق من كلمة السر عبر Firebase مباشرة بدلاً من المقارنة اليدوية
+        if (!isAuthorized && val.length >= 6) {
+            auth.signInWithEmailAndPassword(adminEmail, val)
+                .catch(error => { 
+                    // لا يتم إظهار خطأ هنا للسماح للمستخدم بإكمال الكتابة بسلاسة
+                });
         } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
             autoSyncLink(val);
         }
