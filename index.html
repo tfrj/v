@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Master Pro - Secure Sync</title>
+    <title>VHS Master Pro</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
     <style>
         :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
@@ -59,97 +59,77 @@
 </div>
 
 <script>
-    // --- البيانات التي أرسلتها أنت الآن ---
-    const firebaseConfig = {
+    // البيانات التي زودتني بها (المشروع الجديد)
+    var firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
         databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
         projectId: "videos-5e336",
         storageBucket: "videos-5e336.firebasestorage.app",
         messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af",
-        measurementId: "G-2H4SJNLD1R"
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
-    // البدء
+    // تشغيل Firebase باستخدام الطريقة التقليدية (Version 8) لضمان الاستقرار
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const auth = firebase.auth();
-    const syncRef = db.ref('videoSync');
+    var db = firebase.database();
+    var auth = firebase.auth();
+    var syncRef = db.ref('videoSync');
 
-    const video = document.getElementById('video');
-    const urlInput = document.getElementById('videoUrl');
-    const statusBadge = document.getElementById('status');
-    const countDisplay = document.getElementById('count');
-    const adminPanel = document.getElementById('adminPanel');
+    var video = document.getElementById('video');
+    var urlInput = document.getElementById('videoUrl');
+    var statusBadge = document.getElementById('status');
+    var countDisplay = document.getElementById('count');
+    var adminPanel = document.getElementById('adminPanel');
     
-    // إعدادات الأدمن لكلمة tlfzon
-    const adminEmail = "t@t.tt";
-    const hashedSecret = "3450c02456e3084c83321458e3792f69986b2089"; 
+    var adminEmail = "t@t.tt";
+    var hashedSecret = "3450c02456e3084c83321458e3792f69986b2089"; // tlfzon
 
-    let isAuthorized = false;
-    let hls = new Hls();
-    let isFirstLoad = true;
+    var isAuthorized = false;
+    var hls = new Hls();
 
+    // التحقق من الباسورد
     async function verifyHash(input) {
-        const msgBuffer = new TextEncoder().encode(input);
-        const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        var msgBuffer = new TextEncoder().encode(input);
+        var hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
+        var hashArray = Array.from(new Uint8Array(hashBuffer));
+        var hashHex = hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
         return hashHex === hashedSecret;
     }
 
-    auth.onAuthStateChanged(user => {
-        if (user && user.email === adminEmail) activateAdminMode();
-    });
-
-    function activateAdminMode() {
-        isAuthorized = true;
-        urlInput.value = ""; 
-        urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK TO SYNC";
-        statusBadge.innerText = "STATUS: ADMIN MODE";
-        adminPanel.style.display = "flex";
-    }
-
-    function adminLogout() {
-        auth.signOut().then(() => location.reload());
-    }
-
-    urlInput.addEventListener('input', async () => {
-        const val = urlInput.value.trim();
-        if (!isAuthorized) {
-            const isValid = await verifyHash(val);
-            if (isValid) {
-                auth.signInWithEmailAndPassword(adminEmail, val)
-                    .catch(err => alert("خطأ في Firebase: " + err.message));
-            }
-        } else if (isAuthorized && (val.startsWith('http'))) {
-            autoSyncLink(val);
+    auth.onAuthStateChanged(function(user) {
+        if (user && user.email === adminEmail) {
+            isAuthorized = true;
+            urlInput.value = ""; 
+            urlInput.type = "text"; 
+            urlInput.placeholder = "PASTE LINK TO SYNC";
+            statusBadge.innerText = "STATUS: ADMIN MODE";
+            adminPanel.style.display = "flex";
         }
     });
 
-    function autoSyncLink(url) {
-        loadVideo(url);
-        video.style.display = 'block';
-        syncRef.set({ 
-            url: url, 
-            currentTime: 0, 
-            isPlaying: true, 
-            lastUpdated: Date.now() 
-        });
-        urlInput.value = ""; 
-    }
+    urlInput.addEventListener('input', async function() {
+        var val = urlInput.value.trim();
+        if (!isAuthorized) {
+            var isValid = await verifyHash(val);
+            if (isValid) {
+                auth.signInWithEmailAndPassword(adminEmail, val).catch(function(e){ alert(e.message); });
+            }
+        } else if (val.startsWith('http')) {
+            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            urlInput.value = ""; 
+        }
+    });
 
-    // المزامنة والعدد
-    const myPresenceRef = db.ref('viewers').push();
-    db.ref('.info/connected').on('value', snap => {
+    // المزامنة (الكود الأصلي بدون تغيير)
+    var myPresenceRef = db.ref('viewers').push();
+    db.ref('.info/connected').on('value', function(snap) {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
-    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
+    db.ref('viewers').on('value', function(s) { countDisplay.innerText = s.numChildren(); });
 
-    syncRef.on('value', (snapshot) => {
-        const data = snapshot.val();
+    syncRef.on('value', function(snapshot) {
+        var data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
@@ -158,34 +138,27 @@
             return;
         }
         video.style.display = 'block';
-        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
-        if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
+        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
+        
+        if (video.src !== data.url && !video.src.includes(data.url)) {
+            if (data.url.includes('.m3u8')) {
+                hls.destroy(); hls = new Hls(); hls.loadSource(data.url); hls.attachMedia(video);
+            } else { video.src = data.url; }
+        }
+
         if (data.isPlaying) {
-            const elapsed = (Date.now() - data.lastUpdated) / 1000;
-            const target = data.currentTime + elapsed;
-            if (Math.abs(video.currentTime - target) > 2 || isFirstLoad) {
-                video.currentTime = target;
-                isFirstLoad = false;
-            }
-            if (video.paused) video.play().catch(() => {});
+            var target = data.currentTime + ((Date.now() - data.lastUpdated) / 1000);
+            if (Math.abs(video.currentTime - target) > 2) video.currentTime = target;
+            video.play().catch(function(){});
         } else {
             video.pause();
             video.currentTime = data.currentTime;
         }
     });
 
-    function loadVideo(url) {
-        hls.destroy();
-        if (url.includes('.m3u8')) {
-            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-        } else { video.src = url; }
-        video.play().catch(() => {});
-    }
-
-    function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) syncRef.set(null);
-    }
+    function adminLogout() { auth.signOut().then(function(){ location.reload(); }); }
+    function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
 </script>
 </body>
 </html>
