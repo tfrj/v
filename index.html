@@ -95,8 +95,18 @@
         const count = document.getElementById('count');
         const urlInput = document.getElementById('videoUrl');
 
-        db.ref('.info/connected').on('value', s => { status.innerText = s.val() ? "STATUS: ONLINE" : "STATUS: OFFLINE"; });
+        // --- إصلاح عداد المتصلين ---
+        const myPresenceRef = db.ref('viewers').push(); 
+        db.ref('.info/connected').on('value', snap => {
+            if (snap.val() === true) {
+                myPresenceRef.set(true);
+                myPresenceRef.onDisconnect().remove();
+            }
+        });
         db.ref('viewers').on('value', s => count.innerText = s.numChildren());
+        // -----------------------
+
+        db.ref('.info/connected').on('value', s => { status.innerText = s.val() ? "STATUS: ONLINE" : "STATUS: OFFLINE"; });
 
         db.ref('videoSync').on('value', s => {
             const data = s.val();
