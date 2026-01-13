@@ -83,6 +83,18 @@
     let hls = new Hls();
     let isFirstLoad = true;
 
+    // وظيفة Media Session للتحكم من قفل الشاشة
+    function updateMediaUI() {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'VHS Master Pro',
+                artist: 'Streaming Live'
+            });
+            navigator.mediaSession.setActionHandler('play', () => video.play());
+            navigator.mediaSession.setActionHandler('pause', () => video.pause());
+        }
+    }
+
     function activateAdminMode() {
         isAuthorized = true;
         localStorage.setItem('vhs_admin', 'true');
@@ -105,7 +117,6 @@
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
-        
         if (!isAuthorized && val === passwordSecret) {
             activateAdminMode();
         } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
@@ -114,7 +125,6 @@
     });
 
     function autoSyncLink(url) {
-        // تنفيذ المزامنة
         loadVideo(url);
         video.style.display = 'block';
         syncRef.set({ 
@@ -123,16 +133,10 @@
             isPlaying: true, 
             lastUpdated: Date.now() 
         });
-
-        // التعديل الجديد: مسح النص وإبعاد التركيز فوراً
         urlInput.value = ""; 
         urlInput.placeholder = "SYNCING... PLEASE WAIT";
-        urlInput.blur(); // لإغلاق الكيبورد في الجوال وإلغاء التحديد
-        
-        // إعادة النص الافتراضي بعد ثانية واحدة
-        setTimeout(() => {
-            urlInput.placeholder = "PASTE LINK TO SYNC";
-        }, 1500);
+        urlInput.blur();
+        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
     }
 
     const myPresenceRef = db.ref('viewers').push();
@@ -157,6 +161,7 @@
 
         if (video.src !== data.url && !video.src.includes(data.url)) {
             loadVideo(data.url);
+            updateMediaUI(); // تفعيل التحكم الخارجي
         }
 
         if (data.isPlaying) {
