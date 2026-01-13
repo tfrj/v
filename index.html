@@ -83,32 +83,31 @@
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // تحديث Media Session مع ضمان استقرار الصوت في الخلفية
-    function updateMediaUI() {
+    // --- الحل النهائي لمشكلة تعطل الصوت في الخلفية ---
+    function enableBackgroundAudio() {
         if ('mediaSession' in navigator) {
             navigator.mediaSession.metadata = new MediaMetadata({
-                title: 'VHS Master Pro',
-                artist: 'Streaming Live',
-                artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/100/100514.png', sizes: '512x512', type: 'image/png' }]
+                title: 'VHS MASTER PRO',
+                artist: 'REALTIME SYNC'
             });
-
-            navigator.mediaSession.setActionHandler('play', () => { video.play(); });
-            navigator.mediaSession.setActionHandler('pause', () => { video.pause(); });
-
-            // إجبار النظام على الحفاظ على استقرار الصوت
-            navigator.mediaSession.playbackState = video.paused ? "paused" : "playing";
+            navigator.mediaSession.setActionHandler('play', () => video.play());
+            navigator.mediaSession.setActionHandler('pause', () => video.pause());
+        }
+        
+        // منع المتصفح من تعطيل الصوت (Wake Lock)
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').catch(() => {});
         }
     }
 
-    // مراقبة الحالة لتصحيح الصوت فوراً عند الخروج
-    video.onplay = () => { 
-        if(isAuthorized) syncAction(); 
+    // تصحيح حالة التشغيل للنظام فوراً
+    video.addEventListener('play', () => {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
-    };
-    video.onpause = () => { 
-        if(isAuthorized) syncAction(); 
+        enableBackgroundAudio();
+    });
+    video.addEventListener('pause', () => {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused";
-    };
+    });
 
     function activateAdminMode() {
         isAuthorized = true;
@@ -176,7 +175,6 @@
 
         if (video.src !== data.url && !video.src.includes(data.url)) {
             loadVideo(data.url);
-            updateMediaUI();
         }
 
         if (data.isPlaying) {
@@ -204,6 +202,8 @@
         });
     }
 
+    video.onplay = () => { if(isAuthorized) syncAction(); };
+    video.onpause = () => { if(isAuthorized) syncAction(); };
     video.onseeking = () => { if(isAuthorized) syncAction(); };
 
     function loadVideo(url) {
