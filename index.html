@@ -71,7 +71,7 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const auth = firebase.auth(); // تفعيل نظام التحقق
+    const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
@@ -80,24 +80,30 @@
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
     
-    // البيانات التي زودتني بها
+    // إعدادات الأدمن المشفرة
     const adminEmail = "t@t.tt";
-    const passwordSecret = "tttttt"; 
-    
+    const hashedSecret = "70b4a81867fc28063066444f24345e69317586f6"; // كلمة السر tttttt مشفرة
+
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // التحقق من حالة الدخول عند فتح الصفحة
+    // دالة للتحقق من كلمة السر بنظام التشفير
+    async function verifyHash(input) {
+        const msgBuffer = new TextEncoder().encode(input);
+        const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex === hashedSecret;
+    }
+
+    // استعادة جلسة الأدمن
     auth.onAuthStateChanged(user => {
-        if (user && user.email === adminEmail) {
-            activateAdminMode();
-        }
+        if (user && user.email === adminEmail) activateAdminMode();
     });
 
     function activateAdminMode() {
         isAuthorized = true;
-        // أزلت التخزين المحلي القديم واستبدلته بحالة التحقق الحقيقية من Firebase
         urlInput.value = ""; 
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK TO SYNC";
@@ -112,16 +118,16 @@
         });
     }
 
-    urlInput.addEventListener('input', () => {
+    urlInput.addEventListener('input', async () => {
         const val = urlInput.value.trim();
         
-        // إذا كتب كلمة السر تيتيتيتيتي، نقوم بتسجيل الدخول الفعلي
-        if (!isAuthorized && val === passwordSecret) {
-            auth.signInWithEmailAndPassword(adminEmail, passwordSecret)
-                .catch(error => {
-                    alert("Authentication Failed: " + error.message);
-                });
-        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
+        if (!isAuthorized) {
+            const isValid = await verifyHash(val);
+            if (isValid) {
+                auth.signInWithEmailAndPassword(adminEmail, val)
+                    .catch(err => console.error("Login failed"));
+            }
+        } else if (isAuthorized && (val.startsWith('http'))) {
             autoSyncLink(val);
         }
     });
