@@ -3,153 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retro Studio - VHS Sync</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VHS Player">
+    
+    <title>VHS Master Pro</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
-        :root { 
-            --wood-dark: #2c1e14;
-            --wood-light: #4e342e;
-            --vhs-metal: #121212;
-            --led-glow: #39ff14;
-            --btn-active: #ff3131;
-        }
-        
-        body { 
-            background: #050505; 
-            font-family: 'Courier New', monospace; 
-            display: flex; justify-content: center; align-items: center; 
-            min-height: 100vh; margin: 0; padding: 20px; 
-            background-image: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
-        }
-
-        .main-unit { width: 100%; max-width: 580px; filter: drop-shadow(0 0 30px rgba(0,0,0,1)); }
-
-        /* --- جسم التلفزيون الخشبي 3D --- */
-        .tv-cabinet {
-            background: linear-gradient(135deg, var(--wood-light) 0%, var(--wood-dark) 100%);
-            padding: 25px; border-radius: 15px;
-            box-shadow: inset 0 2px 5px rgba(255,255,255,0.2), 0 10px 0 #1a120c;
-            border: 4px solid #2a1d15; position: relative; z-index: 2;
-        }
-
-        .inner-bezel {
-            background: #111; padding: 15px; border-radius: 50px / 25px;
-            border: 10px solid #222; box-shadow: inset 0 0 40px #000;
-            position: relative; overflow: hidden;
-        }
-
-        /* الشاشة الزجاجية وتأثير الانعكاس */
-        .screen-glass {
-            position: relative; aspect-ratio: 4/3; background: #000;
-            overflow: hidden; display: flex; align-items: center; justify-content: center;
-        }
-
-        .screen-glass::before {
-            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 50%);
-            z-index: 5; pointer-events: none;
-        }
-
-        video { width: 100%; height: 100%; object-fit: cover; filter: contrast(1.1) brightness(1.1); }
-
-        /* تأثير التشويش NO SIGNAL */
-        #error-message {
-            position: absolute; color: #fff; font-size: 28px; text-align: center;
-            font-weight: bold; text-shadow: 2px 2px #ff0000, -2px -2px #0000ff;
-            z-index: 4; animation: flicker 0.2s infinite; display: none;
-        }
-
-        /* --- جهاز الـ VHS المطور --- */
-        .vhs-deck {
-            background: var(--vhs-metal); margin-top: -5px;
-            padding: 30px; border-radius: 0 0 15px 15px;
-            border: 2px solid #333; position: relative;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
-        }
-
-        .vhs-front-panel { display: flex; gap: 20px; align-items: flex-end; }
-
-        /* الشاشة الرقمية للجهاز */
-        .vfd-display {
-            flex: 1; background: #051405; border: 3px inset #222;
-            padding: 10px; color: var(--led-glow); font-size: 14px;
-            text-shadow: 0 0 8px var(--led-glow); display: flex; 
-            flex-direction: column; gap: 5px; min-width: 120px;
-        }
-
-        /* مدخل الشريط (مكان الرابط) */
-        .tape-slot {
-            flex: 2; background: #000; border: 3px solid #222;
-            height: 60px; position: relative; display: flex; align-items: center;
-            padding: 0 15px; box-shadow: inset 0 10px 20px #000;
-        }
-
-        .tape-slot::after {
-            content: "VHS HI-FI STEREO"; color: #333; font-size: 8px;
-            position: absolute; bottom: 5px; right: 10px;
-        }
-
-        input {
-            width: 100%; background: transparent; border: none;
-            color: var(--led-glow); font-family: 'Courier New', monospace;
-            font-size: 16px; outline: none; text-transform: uppercase;
-        }
-
-        /* الأزرار الميكانيكية */
-        .buttons-grid { display: flex; gap: 10px; margin-top: 15px; }
-
-        button {
-            flex: 1; padding: 15px; background: linear-gradient(180deg, #333, #111);
-            border: 1px solid #444; color: #888; cursor: pointer;
-            font-weight: bold; font-size: 11px; border-radius: 3px;
-            box-shadow: 0 5px 0 #000; transition: 0.1s;
-        }
-
-        button:active { transform: translateY(3px); box-shadow: 0 2px 0 #000; color: var(--btn-active); }
-        .btn-eject { color: #500; border-color: #500; }
-
-        @keyframes flicker {
-            0% { opacity: 0.9; } 50% { opacity: 1; } 100% { opacity: 0.8; }
-        }
+        :root { --frame: #1a1a1a; --led: #00ff41; }
+        body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; }
+        .container { width: 100%; max-width: 500px; }
+        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; }
+        .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; }
+        .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.4; }
+        #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
+        .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .display-screen { background: #001a00; color: var(--led); padding: 8px; border-radius: 2px; font-size: 12px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #003300; text-shadow: 0 0 5px var(--led); }
+        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
+        input { width: 100%; background: transparent; border: none; color: var(--led); outline: none; font-size: 14px; font-family: inherit; }
+        .buttons { display: flex; gap: 10px; }
+        button { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; box-shadow: 0 3px 0 #000; }
+        button:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+        .eject { color: #ff4444; }
     </style>
 </head>
 <body>
 
-<div class="main-unit">
-    <div class="tv-cabinet">
-        <div class="inner-bezel">
-            <div class="screen-glass">
-                <div id="error-message">VIDEO IN<br>AUTO SYNC</div>
-                <video id="video" controls playsinline muted></video>
-            </div>
+<div class="container">
+    <div class="tv-unit">
+        <div class="screen-border">
+            <div class="crt-scanlines"></div>
+            <div id="no-signal">NO SIGNAL<br>OFFLINE READY</div>
+            <video id="video" controls playsinline muted></video>
         </div>
     </div>
 
     <div class="vhs-deck">
-        <div class="vhs-front-panel">
-            <div class="vfd-display">
-                <div id="connectionStatus">P-01</div>
-                <div style="font-size: 10px;">LIVE: <span id="count">1</span></div>
-            </div>
-            
-            <div class="tape-slot">
-                <input type="password" id="videoUrl" placeholder="INSERT TAPE">
-            </div>
+        <div class="display-screen">
+            <span id="status">STATUS: STANDBY</span>
+            <span>USERS: <span id="count">0</span></span>
         </div>
-        
-        <div class="buttons-grid">
-            <button onclick="updateDB()">PLAY/SYNC</button>
-            <button onclick="updateDB()">FF/PAUSE</button> <button class="btn-eject" onclick="clearDB()">EJECT ⏏</button>
+        <div class="slot">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
+        </div>
+        <div class="buttons">
+            <button onclick="updateDB()">PLAY / SYNC</button>
+            <button class="eject" onclick="clearDB()">EJECT</button>
         </div>
     </div>
 </div>
 
 <script>
-    /* --- كودك الأصلي تماماً (لا تغيير في الوظائف أو الربط) --- */
-    const passwordSecret = "1234"; 
+    // --- ميزة الحفظ للعمل أوفلاين ---
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            const code = `const cName='v-cache';self.addEventListener('install',e=>e.waitUntil(caches.open(cName).then(c=>c.addAll(['/']))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));`;
+            const blob = new Blob([code], {type: 'text/javascript'});
+            navigator.serviceWorker.register(URL.createObjectURL(blob));
+        });
+    }
+
+    // --- منطق الكود الأصلي ---
+    const passwordSecret = "1234";
     let isAuthorized = false;
 
     const firebaseConfig = {
@@ -162,123 +82,49 @@
         appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-    const syncRef = database.ref('videoSync');
-    const presenceRef = database.ref('viewers');
-
-    const video = document.getElementById('video');
-    const urlInput = document.getElementById('videoUrl');
-    const statusBadge = document.getElementById('connectionStatus');
-    const countDisplay = document.getElementById('count');
-    const errorMessage = document.getElementById('error-message');
-    
-    let hls = new Hls();
-    let isRemoteChange = false; 
-
-    // الحضور والغياب (المتصلين حالياً)
-    const myPresenceRef = presenceRef.push();
-    database.ref('.info/connected').on('value', (snap) => {
-        if (snap.val() === true) {
-            myPresenceRef.onDisconnect().remove();
-            myPresenceRef.set(true);
-        }
-    });
-    presenceRef.on('value', (snap) => {
-        countDisplay.innerText = snap.numChildren();
-    });
-
-    // كود التحقق
-    urlInput.addEventListener('input', () => {
-        if (!isAuthorized && urlInput.value === passwordSecret) {
-            isAuthorized = true;
-            urlInput.value = ""; 
-            urlInput.type = "text"; 
-            urlInput.placeholder = "PASTE URL HERE";
-            statusBadge.innerText = "ADMIN";
-        }
-    });
-
-    // المزامنة من Firebase
-    syncRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (!data || !data.url) {
-            video.src = "";
-            video.style.display = "none";
-            errorMessage.style.display = "block";
+    function initApp() {
+        if (!navigator.onLine) {
+            document.getElementById('status').innerText = "STATUS: OFFLINE";
             return;
-        } else {
-            video.style.display = "block";
-            errorMessage.style.display = "none";
         }
 
-        isRemoteChange = true;
-        if (data.url && video.src !== data.url && !video.src.includes(data.url)) {
-            if(isAuthorized) urlInput.value = data.url;
-            loadVideo(data.url);
-        }
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+        const count = document.getElementById('count');
+        const urlInput = document.getElementById('videoUrl');
 
-        const timeDiff = Math.abs(video.currentTime - data.currentTime);
-        if (timeDiff > 2.0) {
-            video.currentTime = data.currentTime;
-        }
+        db.ref('.info/connected').on('value', s => { status.innerText = s.val() ? "STATUS: ONLINE" : "STATUS: OFFLINE"; });
+        db.ref('viewers').on('value', s => count.innerText = s.numChildren());
 
-        if (data.isPlaying) {
-            if (video.paused) video.play().catch(() => {});
-        } else {
-            if (!video.paused) video.pause();
-        }
-        setTimeout(() => { isRemoteChange = false; }, 500);
-    });
-
-    function sendSyncUpdate() {
-        if (isRemoteChange || !isAuthorized) return; 
-        syncRef.update({
-            currentTime: video.currentTime,
-            isPlaying: !video.paused,
-            lastUpdated: Date.now()
+        db.ref('videoSync').on('value', s => {
+            const data = s.val();
+            if (!data) { video.style.display = 'none'; return; }
+            video.style.display = 'block';
+            if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
+            if (Math.abs(video.currentTime - data.currentTime) > 2) video.currentTime = data.currentTime;
+            data.isPlaying ? video.play().catch(() => {}) : video.pause();
         });
+
+        urlInput.addEventListener('input', (e) => {
+            if (e.target.value === passwordSecret) {
+                isAuthorized = true;
+                e.target.type = "text"; e.target.value = ""; e.target.placeholder = "PASTE URL";
+                status.innerText = "STATUS: ADMIN";
+            }
+        });
+
+        window.updateDB = () => { if (isAuthorized) db.ref('videoSync').set({ url: urlInput.value, currentTime: 0, isPlaying: true }); else alert("WRONG CODE"); };
+        window.clearDB = () => { if (isAuthorized && confirm("EJECT?")) db.ref('videoSync').set(null); };
     }
-
-    video.onplay = sendSyncUpdate;
-    video.onpause = sendSyncUpdate;
-    video.onseeked = sendSyncUpdate;
-
-    setInterval(() => {
-        if (!video.paused && !isRemoteChange && isAuthorized) {
-            syncRef.update({ currentTime: video.currentTime });
-        }
-    }, 7000);
 
     function loadVideo(url) {
-        hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) {
-                hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(video);
-            } else {
-                video.src = url;
-            }
-        } else {
-            video.src = url;
-        }
+        const v = document.getElementById('video');
+        if (url.includes('.m3u8')) { const h = new Hls(); h.loadSource(url); h.attachMedia(v); } else { v.src = url; }
     }
 
-    function updateDB() {
-        if (!isAuthorized) { alert("ERROR: WRONG TAPE CODE"); return; }
-        const newUrl = urlInput.value.trim();
-        if (newUrl) {
-            syncRef.set({
-                url: newUrl, currentTime: 0, isPlaying: true, lastUpdated: Date.now()
-            });
-        }
-    }
-
-    function clearDB() {
-        if (!isAuthorized) return;
-        if (confirm("EJECT CASSETTE?")) { syncRef.set(null); }
-    }
+    initApp();
 </script>
 </body>
 </html>
