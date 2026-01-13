@@ -30,17 +30,17 @@
         button:active { background: #333; }
         button.eject { flex: 1; color: var(--led-red); }
         
-        /* زر تسجيل الخروج الجديد */
         #logoutBtn { 
             display: none; 
             position: absolute; 
-            left: 5px; 
+            left: 10px; 
             background: #442222; 
             border: 1px solid #663333; 
             color: #ffaaaa; 
-            padding: 2px 5px; 
-            font-size: 8px; 
+            padding: 4px 8px; 
+            font-size: 9px; 
             cursor: pointer;
+            z-index: 10;
         }
     </style>
 </head>
@@ -99,60 +99,54 @@
     // دالة تفعيل وضع الأدمن
     function setAdminMode() {
         isAuthorized = true;
-        localStorage.setItem('vhs_admin', 'true'); // حفظ الحالة
-        urlInput.value = ""; 
+        localStorage.setItem('vhs_admin', 'true');
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK";
+        urlInput.value = ""; // تفريغ الخانة لاستقبال الرابط
         statusBadge.innerText = "STATUS: ADMIN MODE";
-        logoutBtn.style.display = "block"; // إظهار زر تسجيل الخروج
+        logoutBtn.style.display = "block";
     }
 
-    // التحقق من الجلسة السابقة عند التحميل
-    window.onload = () => {
-        if (localStorage.getItem('vhs_admin') === 'true') {
-            setAdminMode();
-        }
-    };
+    // فحص الجلسة عند التشغيل
+    if (localStorage.getItem('vhs_admin') === 'true') {
+        setAdminMode();
+    }
 
     // تسجيل الخروج
     function logout() {
-        isAuthorized = false;
         localStorage.removeItem('vhs_admin');
-        logoutBtn.style.display = "none";
-        urlInput.type = "password";
-        urlInput.placeholder = "ENTER ACCESS CODE";
-        urlInput.value = "";
-        statusBadge.innerText = "STATUS: SYNCED";
-        location.reload(); // إعادة تحميل الصفحة للعودة لوضع المشاهد
+        location.reload(); 
     }
 
-    // الدخول كأدمن
+    // رصد إدخال رمز المرور
     urlInput.addEventListener('input', () => {
         if (!isAuthorized && urlInput.value === passwordSecret) {
             setAdminMode();
         }
     });
 
-    // عداد المتواجدين
+    // عداد المشاهدين
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // استقبال المزامنة اللحظي
+    // استقبال المزامنة
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
+            document.getElementById('no-signal').style.display = 'block';
             statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
             statusBadge.classList.remove('online');
             return;
         }
 
         video.style.display = 'block';
-        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
+        document.getElementById('no-signal').style.display = 'none';
         statusBadge.classList.add('online');
+        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
 
         if (isAuthorized && !ignoreUpdates) return;
 
@@ -162,17 +156,17 @@
             loadVideo(data.url);
         }
 
-        if (Math.abs(video.currentTime - data.currentTime) > 0.5) {
+        if (Math.abs(video.currentTime - data.currentTime) > 1) {
             video.currentTime = data.currentTime;
         }
 
         if (data.isPlaying && video.paused) video.play().catch(() => {});
         else if (!data.isPlaying && !video.paused) video.pause();
 
-        setTimeout(() => { ignoreUpdates = false; }, 100);
+        setTimeout(() => { ignoreUpdates = false; }, 500);
     });
 
-    // إرسال المزامنة اللحظي (للأدمن فقط)
+    // إرسال المزامنة
     function syncAction() {
         if (!isAuthorized || ignoreUpdates) return;
         syncRef.update({
@@ -190,25 +184,42 @@
         if (isAuthorized && !video.paused && !ignoreUpdates) {
             syncRef.update({ currentTime: video.currentTime });
         }
-    }, 1000);
+    }, 2000);
 
     function loadVideo(url) {
-        hls.destroy();
-        if (url.includes('.m3u8')) {
-            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-        } else { video.src = url; }
+        if (Hls.isSupported() && url.includes('.m3u8')) {
+            hls.destroy();
+            hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+        } else {
+            video.src = url;
+        }
     }
 
     function updateDB() {
-        if (!isAuthorized) return alert("ENTER CODE");
+        if (!isAuthorized) return alert("ENTER CODE FIRST");
         const val = urlInput.value.trim();
         if (val) {
-            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            // إرسال الرابط الجديد وتصفير الوقت
+            syncRef.set({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                lastUpdated: Date.now() 
+            }).then(() => {
+                urlInput.value = ""; // تنظيف الخانة بعد الإرسال بنجاح
+                alert("Broadcast Synced!");
+            });
+        } else {
+            alert("Please paste a video link first");
         }
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) syncRef.set(null);
+        if (isAuthorized && confirm("EJECT TAPE?")) {
+            syncRef.set(null);
+        }
     }
 </script>
 </body>
