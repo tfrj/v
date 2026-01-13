@@ -2,50 +2,95 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>مشغل IPTV الخاص بي</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل IPTV الذكي</title>
     <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; }
-        .container { max-width: 900px; margin: auto; padding: 20px; }
-        #video-player { width: 100%; border-radius: 8px; background: #000; }
-        .input-area { margin-bottom: 20px; }
-        input { width: 70%; padding: 10px; border-radius: 5px; border: none; }
-        button { padding: 10px 20px; cursor: pointer; background: #e50914; color: white; border: none; border-radius: 5px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f0f; color: white; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 300px; background: #1e1e1e; display: flex; flex-direction: column; border-left: 1px solid #333; }
+        #search-box { padding: 15px; background: #252525; }
+        #search-box input { width: 100%; padding: 10px; border-radius: 5px; border: none; background: #333; color: white; box-sizing: border-box; }
+        #channel-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+        #channel-list li { padding: 12px 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        #channel-list li:hover { background: #3d3d3d; }
+        #main-player { flex: 1; display: flex; flex-direction: column; justify-content: center; background: #000; }
+        .vjs-default-skin { width: 100% !important; height: 80% !important; }
+        .loading { text-align: center; padding: 20px; color: #ffcc00; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>مشغل القنوات (M3U Player)</h2>
-    
-    <div class="input-area">
-        <input type="text" id="m3u-url" placeholder="ضع رابط ملف m3u هنا...">
-        <button onclick="loadPlaylist()">تشغيل</button>
+<div id="sidebar">
+    <div id="search-box">
+        <input type="text" id="filter" placeholder="بحث عن قناة...">
     </div>
+    <ul id="channel-list">
+        <div class="loading">جاري تحميل القنوات...</div>
+    </ul>
+</div>
 
-    <video id="video-player" class="video-js vjs-default-skin" controls preload="auto" height="450">
-        <source src="" type="application/x-mpegURL">
+<div id="main-player">
+    <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" data-setup='{}'>
+        <p class="vjs-no-js">للمشاهدة، يرجى تفعيل JavaScript</p>
     </video>
-    
-    <p>ملاحظة: سفاري يدعم بث HLS بشكل تلقائي.</p>
 </div>
 
 <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
 <script>
-    var player = videojs('video-player');
+    const m3uUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("http://easyip.xyz/get.php?username=sgD6wpYw&password=hUDaZru&type=m3u&output=ts");
+    const player = videojs('my-video');
+    let allChannels = [];
 
-    function loadPlaylist() {
-        var url = document.getElementById('m3u-url').value;
-        if(url) {
-            player.src({
-                src: url,
-                type: 'application/x-mpegURL'
-            });
-            player.play();
-        } else {
-            alert("الرجاء إدخال رابط الملف أولاً");
+    // جلب وتحليل ملف M3U
+    async function fetchPlaylist() {
+        try {
+            const response = await fetch(m3uUrl);
+            const data = await response.text();
+            parseM3U(data);
+        } catch (error) {
+            document.getElementById('channel-list').innerHTML = '<div class="loading">خطأ في التحميل. تأكد من اتصالك.</div>';
         }
     }
+
+    function parseM3U(data) {
+        const lines = data.split('\n');
+        const listElement = document.getElementById('channel-list');
+        listElement.innerHTML = '';
+        
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith('#EXTINF')) {
+                const name = lines[i].split(',')[1] || "قناة غير معروفة";
+                const url = lines[i + 1]?.trim();
+                if (url && url.startsWith('http')) {
+                    allChannels.push({ name, url });
+                }
+            }
+        }
+        displayChannels(allChannels);
+    }
+
+    function displayChannels(channels) {
+        const listElement = document.getElementById('channel-list');
+        listElement.innerHTML = '';
+        channels.forEach(ch => {
+            const li = document.createElement('li');
+            li.textContent = ch.name;
+            li.onclick = () => {
+                player.src({ src: ch.url, type: 'application/x-mpegURL' });
+                player.play();
+            };
+            listElement.appendChild(li);
+        });
+    }
+
+    // خاصية البحث
+    document.getElementById('filter').addEventListener('input', (e) => {
+        const text = e.target.value.toLowerCase();
+        const filtered = allChannels.filter(ch => ch.name.toLowerCase().includes(text));
+        displayChannels(filtered);
+    });
+
+    fetchPlaylist();
 </script>
 
 </body>
