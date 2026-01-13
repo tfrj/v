@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Master Pro - Realtime Sync</title>
+    <title>CRT Master Pro - Sync</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,98 +11,176 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
-        body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; overflow-x: hidden; }
-        .container { width: 100%; max-width: 500px; }
-        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; }
-        .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2; }
-        #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
-        .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .display-screen { background: #050505; padding: 10px; border-radius: 2px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #222; }
-        #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); }
-        #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
-        .users-count { color: var(--led-green); }
-        /* تم إخفاء slot الذي كان يحتوي على حقل الإدخال */
-        .slot {
-            display: none; 
-        }
-        input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
-        .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
-        button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
-        button:active { background: #333; }
-        button.eject { flex: 1; color: var(--led-red); }
-        #logoutBtn { background: #300; border-color: #600; flex: 1; }
-
-        /* إضافة ستايل لزر المقبض الجديد */
-        .tv-controls {
-            display: flex;
-            justify-content: flex-end; 
-            margin-top: 10px;
+        :root { 
+            --tv-body: #352f2a; 
+            --screen-bg: #121212;
+            --led-on: #00ff41; 
+            --led-off: #440000; 
         }
 
-        .power-knob {
-            width: 45px;
-            height: 45px;
-            background: #333;
-            border-radius: 50%;
-            border: 2px solid #555;
+        body { 
+            background-color: #1a1a1a; 
+            font-family: 'Courier New', monospace; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            margin: 0; 
+            color: white; 
+        }
+
+        /* هيكل التلفزيون القديم */
+        .crt-tv {
+            background: var(--tv-body);
+            padding: 40px 20px 20px 20px;
+            border-radius: 20px;
+            border-bottom: 15px solid #221e1b;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            position: relative;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        /* إطار الشاشة المنحني */
+        .screen-frame {
+            background: #000;
+            padding: 20px;
+            border-radius: 30px;
+            box-shadow: inset 0 0 20px #000;
+            position: relative;
+            aspect-ratio: 4 / 3;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        video { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            border-radius: 10%;
+            display: none; 
+            z-index: 2;
+        }
+
+        /* تأثير التشويش والخطوط */
+        .crt-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.05));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+            z-index: 3;
+            border-radius: 30px;
+        }
+
+        #no-signal { 
+            color: #555; 
+            font-size: 24px; 
+            font-weight: bold;
+            text-shadow: 0 0 5px #000;
+        }
+
+        /* لوحة التحكم الجانبية */
+        .side-panel {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+
+        .knob-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .power-btn {
+            width: 50px;
+            height: 50px;
+            background: #600;
+            border: 4px solid #400;
+            border-radius: 50%;
             cursor: pointer;
+            box-shadow: 0 4px 0 #200;
+            transition: 0.1s;
             position: relative;
-            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-            margin-bottom: 15px; /* لإضافة مسافة بين المقبض والـ VHS Deck */
         }
 
-        .power-knob::before {
-            content: '';
-            position: absolute;
-            width: 15px;
-            height: 2px;
-            background: #bbb;
-            transform: rotate(45deg); 
+        .power-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
         }
 
-        .knob-text {
-            position: absolute;
-            bottom: -20px;
-            color: #999;
-            font-size: 8px;
-            letter-spacing: 0.5px;
+        .power-btn.active {
+            background: var(--led-on);
+            border-color: #008020;
+            box-shadow: 0 0 15px var(--led-on);
         }
+
+        .status-led {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--led-off);
+            margin-bottom: 5px;
+        }
+
+        .status-led.online { background: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
+
+        .info-display {
+            font-size: 10px;
+            color: #aaa;
+            text-align: left;
+        }
+
+        .admin-buttons {
+            display: none;
+            gap: 10px;
+        }
+
+        .retro-btn {
+            background: #444;
+            border: none;
+            padding: 8px 15px;
+            color: #fff;
+            font-size: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            border-bottom: 3px solid #222;
+        }
+
+        .retro-btn:active { border-bottom: none; transform: translateY(2px); }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="tv-unit">
-        <div class="screen-border">
-            <div class="crt-scanlines"></div>
-            <div id="no-signal">NO SIGNAL</div>
-            <video id="video" controls playsinline muted></video>
-        </div>
-    </div>
-    
-    <div class="tv-controls">
-        <div id="powerKnob" class="power-knob">
-            <span class="knob-text">ACCESS</span>
-        </div>
+<div class="crt-tv">
+    <div class="screen-frame">
+        <div class="crt-overlay"></div>
+        <div id="no-signal">STATIC - NO SIGNAL</div>
+        <video id="video" controls playsinline muted></video>
     </div>
 
-    <div class="vhs-deck">
-        <div class="display-screen">
-            <span id="status">STATUS: OFFLINE</span>
-            <span class="users-count">REC ● <span id="count">0</span></span>
+    <div class="side-panel">
+        <div class="info-display">
+            <div id="status">SYS: STANDBY</div>
+            <div>VIEWERS: <span id="count">0</span></div>
         </div>
-        <div class="slot">
-            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
+
+        <div id="adminPanel" class="admin-buttons">
+            <button class="retro-btn" onclick="clearDB()">EJECT</button>
+            <button class="retro-btn" style="background:#822" onclick="adminLogout()">OFF</button>
         </div>
-        <div id="adminPanel" class="admin-controls">
-            <button class="eject" onclick="clearDB()">EJECT</button>
-            <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
+
+        <div class="knob-container">
+            <div id="powerBtn" class="power-btn"></div>
+            <span style="font-size: 8px;">POWER / LINK</span>
         </div>
     </div>
 </div>
@@ -124,14 +202,12 @@
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
-    const urlInput = document.getElementById('videoUrl'); // ما زلنا نعرفه لكن لن نستخدمه للإدخال
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
-    const powerKnob = document.getElementById('powerKnob'); // تعريف زر المقبض الجديد
+    const powerBtn = document.getElementById('powerBtn');
     
     const adminEmail = "t@t.tt";
-    
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
@@ -145,10 +221,10 @@
 
     function activateAdminMode() {
         isAuthorized = true;
-        // تم إزالة التعديلات على urlInput لأنه لم يعد مستخدماً للإدخال
-        statusBadge.innerText = "STATUS: ADMIN MODE";
+        statusBadge.innerText = "SYS: ADMIN_ACTIVE";
+        statusBadge.style.color = "#00ff41";
         adminPanel.style.display = "flex";
-        powerKnob.querySelector('.knob-text').innerText = "LINK"; // تغيير نص المقبض ليعكس وظيفة الأدمن
+        powerBtn.classList.add('active');
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = setInterval(() => {
@@ -159,32 +235,21 @@
     }
 
     function adminLogout() {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        auth.signOut().then(() => {
-            isAuthorized = false;
-            powerKnob.querySelector('.knob-text').innerText = "ACCESS"; // إعادة النص الأصلي للمقبض
-            location.reload();
-        });
+        auth.signOut().then(() => location.reload());
     }
 
-    // تم حذف urlInput.addEventListener بالكامل واستبداله بـ powerKnob
-    powerKnob.addEventListener('click', () => {
-        let userInput;
-        if (isAuthorized) {
-            // إذا كان أدمن، يطلب منه رابط الفيديو
-            userInput = prompt("ENTER VIDEO LINK (M3U8/MP4):");
-            if (userInput) {
-                autoSyncLink(userInput);
+    // الزر الرئيسي لإدخال كلمة السر أو الرابط
+    powerBtn.addEventListener('click', () => {
+        let val;
+        if (!isAuthorized) {
+            val = prompt("ENTER ACCESS CODE:");
+            if (val) {
+                auth.signInWithEmailAndPassword(adminEmail, val)
+                    .catch(() => alert("ACCESS DENIED"));
             }
         } else {
-            // إذا لم يكن أدمن، يطلب منه كلمة السر
-            userInput = prompt("ENTER ACCESS CODE:");
-            if (userInput) {
-                auth.signInWithEmailAndPassword(adminEmail, userInput)
-                    .catch(error => {
-                        alert("Incorrect Access Code!"); // إظهار تنبيه واضح للخطأ
-                    });
-            }
+            val = prompt("PASTE VIDEO LINK:");
+            if (val) autoSyncLink(val);
         }
     });
 
@@ -197,29 +262,27 @@
             isPlaying: true, 
             lastUpdated: Date.now() 
         });
-        // تم إزالة التعديلات على urlInput
-        alert("Video Syncing!"); // إظهار رسالة بسيطة
     }
 
+    // نظام الـ Presence (المشاهدين)
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
+    // المزامنة المستمرة
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
-            statusBadge.classList.remove('online');
+            document.getElementById('no-signal').innerText = "STATIC - NO SIGNAL";
             return;
         }
 
         video.style.display = 'block';
-        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
-        statusBadge.classList.add('online');
+        document.getElementById('no-signal').innerText = "";
 
         if (video.src !== data.url && !video.src.includes(data.url)) {
             loadVideo(data.url);
@@ -227,11 +290,11 @@
 
         if (data.isPlaying) {
             const now = Date.now();
-            const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
-            const targetTime = data.currentTime + elapsedSinceUpdate;
+            const elapsed = (now - data.lastUpdated) / 1000;
+            const target = data.currentTime + elapsed;
 
-            if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
-                video.currentTime = targetTime;
+            if (Math.abs(video.currentTime - target) > 2 || isFirstLoad) {
+                video.currentTime = target;
                 isFirstLoad = false;
             }
             if (video.paused) video.play().catch(() => {});
@@ -250,30 +313,27 @@
         });
     }
 
-    video.onplay = () => { if(isAuthorized) syncAction(); };
-    video.onpause = () => { if(isAuthorized) syncAction(); };
-    video.onseeking = () => { if(isAuthorized) syncAction(); };
-
     function loadVideo(url) {
         hls.destroy();
         if (url.includes('.m3u8')) {
             hls = new Hls(); 
             hls.loadSource(url); 
             hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
         } else { 
             video.src = url; 
-            video.play().catch(() => {});
         }
+        video.play().catch(() => {});
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) {
+        if (isAuthorized && confirm("EJECT TAPE?")) {
             syncRef.set(null);
-            // تم إزالة التعديلات على urlInput
-            alert("EJECTED!");
         }
     }
+
+    video.onplay = () => { if(isAuthorized) syncAction(); };
+    video.onpause = () => { if(isAuthorized) syncAction(); };
+    video.onseeking = () => { if(isAuthorized) syncAction(); };
 </script>
 </body>
 </html>
