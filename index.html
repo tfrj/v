@@ -121,7 +121,7 @@
         }
 
         // تقليل الفارق المسموح به إلى 0.5 ثانية لمزامنة أدق
-        if (Math.abs(video.currentTime - data.currentTime) > 0.1) {
+        if (Math.abs(video.currentTime - data.currentTime) > 0.5) {
             video.currentTime = data.currentTime;
         }
 
