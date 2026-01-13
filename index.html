@@ -95,5 +95,185 @@
     <div class="vhs-deck">
         <div class="display-screen">
             <span id="status">STATUS: OFFLINE</span>
-            <span class
+            <span class="users-count">REC ● <span id="count">0</span></span>
+        </div>
+        <div class="slot">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
+        </div>
+        <div id="adminPanel" class="admin-controls">
+            <button class="eject" onclick="clearDB()">EJECT</button>
+            <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
+        </div>
+    </div>
+</div>
 
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auth = firebase.auth();
+    const syncRef = db.ref('videoSync');
+
+    const video = document.getElementById('video');
+    const urlInput = document.getElementById('videoUrl'); // ما زلنا نعرفه لكن لن نستخدمه للإدخال
+    const statusBadge = document.getElementById('status');
+    const countDisplay = document.getElementById('count');
+    const adminPanel = document.getElementById('adminPanel');
+    const powerKnob = document.getElementById('powerKnob'); // تعريف زر المقبض الجديد
+    
+    const adminEmail = "t@t.tt";
+    
+    let isAuthorized = false;
+    let hls = new Hls();
+    let isFirstLoad = true;
+    let heartbeatInterval = null;
+
+    auth.onAuthStateChanged(user => {
+        if (user && user.email === adminEmail) {
+            activateAdminMode();
+        }
+    });
+
+    function activateAdminMode() {
+        isAuthorized = true;
+        // تم إزالة التعديلات على urlInput لأنه لم يعد مستخدماً للإدخال
+        statusBadge.innerText = "STATUS: ADMIN MODE";
+        adminPanel.style.display = "flex";
+        powerKnob.querySelector('.knob-text').innerText = "LINK"; // تغيير نص المقبض ليعكس وظيفة الأدمن
+
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        heartbeatInterval = setInterval(() => {
+            if (isAuthorized && !video.paused) {
+                syncAction();
+            }
+        }, 5000);
+    }
+
+    function adminLogout() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        auth.signOut().then(() => {
+            isAuthorized = false;
+            powerKnob.querySelector('.knob-text').innerText = "ACCESS"; // إعادة النص الأصلي للمقبض
+            location.reload();
+        });
+    }
+
+    // تم حذف urlInput.addEventListener بالكامل واستبداله بـ powerKnob
+    powerKnob.addEventListener('click', () => {
+        let userInput;
+        if (isAuthorized) {
+            // إذا كان أدمن، يطلب منه رابط الفيديو
+            userInput = prompt("ENTER VIDEO LINK (M3U8/MP4):");
+            if (userInput) {
+                autoSyncLink(userInput);
+            }
+        } else {
+            // إذا لم يكن أدمن، يطلب منه كلمة السر
+            userInput = prompt("ENTER ACCESS CODE:");
+            if (userInput) {
+                auth.signInWithEmailAndPassword(adminEmail, userInput)
+                    .catch(error => {
+                        alert("Incorrect Access Code!"); // إظهار تنبيه واضح للخطأ
+                    });
+            }
+        }
+    });
+
+    function autoSyncLink(url) {
+        loadVideo(url);
+        video.style.display = 'block';
+        syncRef.set({ 
+            url: url, 
+            currentTime: 0, 
+            isPlaying: true, 
+            lastUpdated: Date.now() 
+        });
+        // تم إزالة التعديلات على urlInput
+        alert("Video Syncing!"); // إظهار رسالة بسيطة
+    }
+
+    const myPresenceRef = db.ref('viewers').push();
+    db.ref('.info/connected').on('value', snap => {
+        if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
+    });
+    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
+
+    syncRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data || !data.url) {
+            video.style.display = 'none';
+            video.pause();
+            statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
+            statusBadge.classList.remove('online');
+            return;
+        }
+
+        video.style.display = 'block';
+        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
+        statusBadge.classList.add('online');
+
+        if (video.src !== data.url && !video.src.includes(data.url)) {
+            loadVideo(data.url);
+        }
+
+        if (data.isPlaying) {
+            const now = Date.now();
+            const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
+            const targetTime = data.currentTime + elapsedSinceUpdate;
+
+            if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
+                video.currentTime = targetTime;
+                isFirstLoad = false;
+            }
+            if (video.paused) video.play().catch(() => {});
+        } else {
+            video.pause();
+            video.currentTime = data.currentTime;
+        }
+    });
+
+    function syncAction() {
+        if (!isAuthorized) return;
+        syncRef.update({
+            currentTime: video.currentTime,
+            isPlaying: !video.paused,
+            lastUpdated: Date.now()
+        });
+    }
+
+    video.onplay = () => { if(isAuthorized) syncAction(); };
+    video.onpause = () => { if(isAuthorized) syncAction(); };
+    video.onseeking = () => { if(isAuthorized) syncAction(); };
+
+    function loadVideo(url) {
+        hls.destroy();
+        if (url.includes('.m3u8')) {
+            hls = new Hls(); 
+            hls.loadSource(url); 
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        } else { 
+            video.src = url; 
+            video.play().catch(() => {});
+        }
+    }
+
+    function clearDB() {
+        if (isAuthorized && confirm("EJECT?")) {
+            syncRef.set(null);
+            // تم إزالة التعديلات على urlInput
+            alert("EJECTED!");
+        }
+    }
+</script>
+</body>
+</html>
