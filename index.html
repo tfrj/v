@@ -103,19 +103,18 @@
         location.reload();
     }
 
-    // تعديل: المزامنة تعمل فور اللصق أو التغيير إذا كان المدخل رابطاً
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
         
         if (!isAuthorized && val === passwordSecret) {
             activateAdminMode();
         } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
-            // تنفيذ المزامنة فوراً عند اكتشاف رابط
             autoSyncLink(val);
         }
     });
 
     function autoSyncLink(url) {
+        // تنفيذ المزامنة
         loadVideo(url);
         video.style.display = 'block';
         syncRef.set({ 
@@ -124,6 +123,16 @@
             isPlaying: true, 
             lastUpdated: Date.now() 
         });
+
+        // التعديل الجديد: مسح النص وإبعاد التركيز فوراً
+        urlInput.value = ""; 
+        urlInput.placeholder = "SYNCING... PLEASE WAIT";
+        urlInput.blur(); // لإغلاق الكيبورد في الجوال وإلغاء التحديد
+        
+        // إعادة النص الافتراضي بعد ثانية واحدة
+        setTimeout(() => {
+            urlInput.placeholder = "PASTE LINK TO SYNC";
+        }, 1500);
     }
 
     const myPresenceRef = db.ref('viewers').push();
