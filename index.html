@@ -59,17 +59,19 @@
 </div>
 
 <script>
-    // الإعدادات المحدثة بناءً على الرابط والصور الخاصة بك
+    // --- البيانات التي أرسلتها أنت الآن ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
-        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com/", 
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
         projectId: "videos-5e336",
         storageBucket: "videos-5e336.firebasestorage.app",
         messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af",
+        measurementId: "G-2H4SJNLD1R"
     };
 
+    // البدء
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const auth = firebase.auth();
@@ -81,7 +83,7 @@
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
     
-    // إعدادات الحساب وكلمة السر tlfzon
+    // إعدادات الأدمن لكلمة tlfzon
     const adminEmail = "t@t.tt";
     const hashedSecret = "3450c02456e3084c83321458e3792f69986b2089"; 
 
@@ -89,7 +91,6 @@
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // دالة للتحقق من كلمة السر محلياً قبل إرسالها لـ Firebase
     async function verifyHash(input) {
         const msgBuffer = new TextEncoder().encode(input);
         const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
@@ -98,11 +99,8 @@
         return hashHex === hashedSecret;
     }
 
-    // تتبع حالة تسجيل الدخول
     auth.onAuthStateChanged(user => {
-        if (user && user.email === adminEmail) {
-            activateAdminMode();
-        }
+        if (user && user.email === adminEmail) activateAdminMode();
     });
 
     function activateAdminMode() {
@@ -115,21 +113,16 @@
     }
 
     function adminLogout() {
-        auth.signOut().then(() => {
-            isAuthorized = false;
-            location.reload();
-        });
+        auth.signOut().then(() => location.reload());
     }
 
     urlInput.addEventListener('input', async () => {
         const val = urlInput.value.trim();
-        
         if (!isAuthorized) {
             const isValid = await verifyHash(val);
             if (isValid) {
-                // محاولة تسجيل الدخول الفعلي بـ Firebase لفتح صلاحية الكتابة
                 auth.signInWithEmailAndPassword(adminEmail, val)
-                    .catch(err => console.error("Auth Failed:", err.message));
+                    .catch(err => alert("خطأ في Firebase: " + err.message));
             }
         } else if (isAuthorized && (val.startsWith('http'))) {
             autoSyncLink(val);
@@ -148,7 +141,7 @@
         urlInput.value = ""; 
     }
 
-    // إدارة المزامنة والعدد
+    // المزامنة والعدد
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
@@ -164,13 +157,10 @@
             statusBadge.classList.remove('online');
             return;
         }
-
         video.style.display = 'block';
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
-
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
-
         if (data.isPlaying) {
             const elapsed = (Date.now() - data.lastUpdated) / 1000;
             const target = data.currentTime + elapsed;
