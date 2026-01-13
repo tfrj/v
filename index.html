@@ -3,111 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart Player - Pro VHS</title>
+    <title>Smart Player - VHS Sync</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <style>
-        :root { --ios-bg: #050505; --vhs-gray: #202020; --ios-accent: #0A84FF; --ios-red: #FF3B30; --ios-green: #34C759; }
+        :root { 
+            --ios-bg: #0a0a0a; 
+            --vhs-gray: #2b2b2b; 
+            --vhs-blue: #0000FF; /* لون شاشة الخطأ القديمة */
+            --ios-accent: #0A84FF; 
+            --ios-red: #FF3B30; 
+            --ios-green: #34C759; 
+        }
+        
         body { font-family: 'Courier New', Courier, monospace; background-color: var(--ios-bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 500px; }
         
-        /* تصميم مشغل VHS مطور */
+        /* تصميم مشغل VHS */
         .vhs-deck {
-            background: #1a1a1a;
-            border-radius: 12px; padding: 25px; 
-            border: 2px solid #333;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+            background: linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 100%);
+            border-radius: 10px;
+            padding: 30px 20px;
+            border-bottom: 4px solid #000;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), 0 10px 20px rgba(0,0,0,0.5);
+            position: relative;
         }
 
-        .vhs-slot { 
-            background: #000; border: 2px solid #444; border-radius: 4px; 
-            padding: 8px; position: relative; overflow: hidden;
+        /* فتحة الشريط (مكان إدخال الرابط) */
+        .vhs-slot {
+            background: #000;
+            border: 3px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            position: relative;
+            box-shadow: inset 0 5px 15px rgba(0,0,0,1);
+        }
+
+        .vhs-slot::after {
+            content: "INSERT CASSETTE ▲";
+            position: absolute;
+            top: -20px;
+            left: 10px;
+            font-size: 10px;
+            color: #888;
         }
 
         input { 
-            width: 100%; padding: 10px; background: transparent; border: none; 
-            color: #00FF00; font-family: 'Courier New', monospace; 
-            font-size: 14px; text-align: center; outline: none; box-sizing: border-box; 
+            width: 100%; 
+            padding: 12px; 
+            background: transparent; 
+            border: none; 
+            color: #00FF00; /* لون أخضر فسفوري قديم */
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            text-align: center; 
+            outline: none; 
+            box-sizing: border-box;
+            text-transform: uppercase;
         }
 
-        .button-group { display: flex; gap: 10px; margin-top: 15px; }
+        input::placeholder { color: #333; }
+
+        .button-group { display: flex; gap: 10px; margin-top: 20px; }
+        
         button { 
-            flex: 2; padding: 12px; border-radius: 4px; border: none; 
-            background: #444; color: #fff; font-weight: bold; cursor: pointer; 
-            box-shadow: 0 3px 0 #222; text-transform: uppercase;
+            flex: 2; 
+            padding: 12px; 
+            border-radius: 5px; 
+            border: 1px solid #555; 
+            background: #333; 
+            color: #ddd; 
+            font-weight: bold; 
+            cursor: pointer; 
+            box-shadow: 0 4px 0 #111;
+            text-transform: uppercase;
+            font-size: 12px;
         }
-        button:active { transform: translateY(2px); box-shadow: 0 1px 0 #222; }
-        button.delete-btn { flex: 1; background: #2a1010; color: var(--ios-red); }
 
-        /* منطقة الفيديو وتأثير التشويش الرهيب */
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #111; }
+        button.delete-btn { flex: 1; color: var(--ios-red); }
+
+        /* منطقة الفيديو وتأثير VHS */
         .video-wrapper { 
-            width: 100%; border-radius: 4px; overflow: hidden; 
-            background: black; margin-bottom: 20px; position: relative; 
-            aspect-ratio: 16 / 9; border: 10px solid #111;
+            width: 100%; 
+            border-radius: 5px; 
+            overflow: hidden; 
+            background: var(--vhs-blue); 
+            margin-bottom: 25px; 
+            position: relative; 
+            aspect-ratio: 16 / 9;
+            border: 8px solid #1a1a1a;
         }
         
-        video { width: 100%; height: 100%; object-fit: cover; z-index: 1; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         
-        /* شاشة التشويش (Canvas Noise) */
-        #staticCanvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0; display: none; /* مخفي لما يشتغل الفيديو */
+        /* تأثير التشويش فوق الفيديو */
+        .vhs-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+            z-index: 2;
+            opacity: 0.4;
         }
 
-        .no-signal-text {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: rgba(255,255,255,0.8); font-size: 24px; font-weight: bold;
-            z-index: 1; pointer-events: none; text-shadow: 2px 2px #000;
-            display: none;
+        #error-message {
+            position: absolute;
+            color: white;
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            text-align: center;
+            z-index: 0;
+            text-shadow: 2px 2px #000;
         }
 
-        .status-container { display: flex; justify-content: space-between; width: 100%; margin-bottom: 8px; font-size: 11px; color: #666; }
+        .status-container { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px; font-size: 12px; color: #aaa; }
+        .viewer-count { color: var(--ios-green); }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="status-container">
-        <div id="connectionStatus">READY_PLAYER_V1</div>
-        <div>VIEWERS: <span id="count">1</span></div>
+        <div id="connectionStatus">SYSTEM: READY</div>
+        <div class="viewer-count">LIVE USERS: <span id="count">1</span></div>
     </div>
     
-    <div class="video-wrapper" id="screen">
-        <canvas id="staticCanvas"></canvas>
-        <div class="no-signal-text" id="noSignal">NO SIGNAL</div>
+    <div class="video-wrapper">
+        <div class="vhs-overlay"></div>
+        <div id="error-message">NO SIGNAL<br>1998-01-12</div>
         <video id="video" controls playsinline muted></video>
     </div>
 
     <div class="vhs-deck">
         <div class="vhs-slot">
-            <input type="password" id="videoUrl" placeholder="PASSWORD REQUIRED">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
+        
         <div class="button-group">
-            <button onclick="updateDB()">LOAD TAPE</button>
+            <button onclick="updateDB()">PLAY / SYNC</button>
             <button class="delete-btn" onclick="clearDB()">EJECT</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- الجزء الخاص بتوليد التشويش (Static Noise) ---
-    const canvas = document.getElementById('staticCanvas');
-    const ctx = canvas.getContext('2d');
-    function generateNoise() {
-        const idata = ctx.createImageData(canvas.width, canvas.height);
-        const buffer32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < buffer32.length; i++) {
-            buffer32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
-        }
-        ctx.putImageData(idata, 0, 0);
-        requestAnimationFrame(generateNoise);
-    }
-    canvas.width = 200; canvas.height = 150; // جودة منخفضة ليعطي شكل قديم
-    generateNoise();
+    const passwordSecret = "1234"; 
+    let isAuthorized = false;
 
-    // --- إعدادات Firebase الخاصة بك ---
+    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -127,26 +174,30 @@
     const urlInput = document.getElementById('videoUrl');
     const statusBadge = document.getElementById('connectionStatus');
     const countDisplay = document.getElementById('count');
-    const staticCanvas = document.getElementById('staticCanvas');
-    const noSignal = document.getElementById('noSignal');
+    const errorMessage = document.getElementById('error-message');
     
     let hls = new Hls();
     let isRemoteChange = false; 
-    let isAuthorized = false;
 
-    // الحضور والغياب
     const myPresenceRef = presenceRef.push();
-    database.ref('.info/connected').on('value', snap => {
-        if (snap.val()) { myPresenceRef.onDisconnect().remove(); myPresenceRef.set(true); }
+    database.ref('.info/connected').on('value', (snap) => {
+        if (snap.val() === true) {
+            myPresenceRef.onDisconnect().remove();
+            myPresenceRef.set(true);
+        }
     });
-    presenceRef.on('value', snap => countDisplay.innerText = snap.numChildren());
+    presenceRef.on('value', (snap) => {
+        countDisplay.innerText = snap.numChildren();
+    });
 
     urlInput.addEventListener('input', () => {
-        if (!isAuthorized && urlInput.value === "1234") { // كلمة السر هنا
+        if (!isAuthorized && urlInput.value === passwordSecret) {
             isAuthorized = true;
-            urlInput.value = ""; urlInput.type = "text"; 
-            urlInput.placeholder = "PASTE URL";
-            statusBadge.innerText = "ADMIN_LOGGED_IN";
+            urlInput.value = ""; 
+            urlInput.type = "text"; 
+            urlInput.placeholder = "PASTE URL HERE";
+            urlInput.style.color = "#00FF00";
+            statusBadge.innerText = "SYSTEM: ADMIN MODE";
         }
     });
 
@@ -156,46 +207,89 @@
         if (!data || !data.url) {
             video.src = "";
             video.style.display = "none";
-            staticCanvas.style.display = "block"; // شغل التشويش
-            noSignal.style.display = "block";
+            errorMessage.style.display = "block";
             return;
         } else {
             video.style.display = "block";
-            staticCanvas.style.display = "none"; // اخف التشويش
-            noSignal.style.display = "none";
+            errorMessage.style.display = "none";
         }
 
         isRemoteChange = true;
-        if (data.url && !video.src.includes(data.url)) loadVideo(data.url);
-        if (Math.abs(video.currentTime - data.currentTime) > 2.0) video.currentTime = data.currentTime;
-        data.isPlaying ? video.play().catch(()=>{}) : video.pause();
-        setTimeout(() => isRemoteChange = false, 500);
+
+        if (data.url && video.src !== data.url && !video.src.includes(data.url)) {
+            if(isAuthorized) urlInput.value = data.url;
+            loadVideo(data.url);
+        }
+
+        const timeDiff = Math.abs(video.currentTime - data.currentTime);
+        if (timeDiff > 2.0) {
+            video.currentTime = data.currentTime;
+        }
+
+        if (data.isPlaying) {
+            if (video.paused) video.play().catch(() => {});
+        } else {
+            if (!video.paused) video.pause();
+        }
+
+        setTimeout(() => { isRemoteChange = false; }, 500);
     });
 
     function sendSyncUpdate() {
         if (isRemoteChange || !isAuthorized) return; 
-        syncRef.update({ currentTime: video.currentTime, isPlaying: !video.paused, lastUpdated: Date.now() });
+        syncRef.update({
+            currentTime: video.currentTime,
+            isPlaying: !video.paused,
+            lastUpdated: Date.now()
+        });
     }
 
-    video.onplay = video.onpause = video.onseeked = sendSyncUpdate;
+    video.onplay = sendSyncUpdate;
+    video.onpause = sendSyncUpdate;
+    video.onseeked = sendSyncUpdate;
+
+    setInterval(() => {
+        if (!video.paused && !isRemoteChange && isAuthorized) {
+            syncRef.update({ currentTime: video.currentTime });
+        }
+    }, 7000);
 
     function loadVideo(url) {
         hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
-            else { video.src = url; }
-        } else { video.src = url; }
+            if (Hls.isSupported()) {
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+            } else {
+                video.src = url;
+            }
+        } else {
+            video.src = url;
+        }
     }
 
     function updateDB() {
-        if (!isAuthorized) return alert("ENTER PASSWORD");
-        if (urlInput.value.trim()) {
-            syncRef.set({ url: urlInput.value.trim(), currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+        if (!isAuthorized) {
+            alert("WRONG PASSWORD");
+            return;
+        }
+        const newUrl = urlInput.value.trim();
+        if (newUrl) {
+            syncRef.set({
+                url: newUrl,
+                currentTime: 0,
+                isPlaying: true, 
+                lastUpdated: Date.now()
+            });
         }
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT TAPE?")) syncRef.set(null);
+        if (!isAuthorized) return;
+        if (confirm("EJECT TAPE FOR EVERYONE?")) {
+            syncRef.set(null);
+        }
     }
 </script>
 </body>
