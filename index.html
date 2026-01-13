@@ -82,31 +82,6 @@
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
-    let currentVideoUrl = "";
-
-    // --- الحل الجذري لمشكلة تعطل الصوت والتعليق عند العودة ---
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && currentVideoUrl) {
-            // عند العودة للصفحة، نتأكد أن الاتصال بـ Firebase والمشغل سليم
-            db.goOnline(); 
-            // إعادة تحميل خفيفة للمشغل لضمان عمل الصوت بدون تحديث المتصفح
-            syncRef.once('value', (snap) => {
-                const data = snap.val();
-                if (data && data.url) loadVideo(data.url);
-            });
-        }
-    });
-
-    function setupMediaSession() {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: 'VHS MASTER PRO',
-                artist: 'REALTIME SYNC'
-            });
-            navigator.mediaSession.setActionHandler('play', () => video.play());
-            navigator.mediaSession.setActionHandler('pause', () => video.pause());
-        }
-    }
 
     function activateAdminMode() {
         isAuthorized = true;
@@ -130,6 +105,7 @@
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
+        
         if (!isAuthorized && val === passwordSecret) {
             activateAdminMode();
         } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
@@ -138,7 +114,7 @@
     });
 
     function autoSyncLink(url) {
-        currentVideoUrl = url;
+        // تنفيذ المزامنة
         loadVideo(url);
         video.style.display = 'block';
         syncRef.set({ 
@@ -147,10 +123,16 @@
             isPlaying: true, 
             lastUpdated: Date.now() 
         });
+
+        // التعديل الجديد: مسح النص وإبعاد التركيز فوراً
         urlInput.value = ""; 
         urlInput.placeholder = "SYNCING... PLEASE WAIT";
-        urlInput.blur();
-        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
+        urlInput.blur(); // لإغلاق الكيبورد في الجوال وإلغاء التحديد
+        
+        // إعادة النص الافتراضي بعد ثانية واحدة
+        setTimeout(() => {
+            urlInput.placeholder = "PASTE LINK TO SYNC";
+        }, 1500);
     }
 
     const myPresenceRef = db.ref('viewers').push();
@@ -173,10 +155,8 @@
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
-        if (currentVideoUrl !== data.url) {
-            currentVideoUrl = data.url;
+        if (video.src !== data.url && !video.src.includes(data.url)) {
             loadVideo(data.url);
-            setupMediaSession();
         }
 
         if (data.isPlaying) {
@@ -184,7 +164,7 @@
             const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + elapsedSinceUpdate;
 
-            if (Math.abs(video.currentTime - targetTime) > 3 || isFirstLoad) {
+            if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
                 video.currentTime = targetTime;
                 isFirstLoad = false;
             }
@@ -211,7 +191,7 @@
     function loadVideo(url) {
         hls.destroy();
         if (url.includes('.m3u8')) {
-            hls = new Hls({ enableWorker: true, lowLatencyMode: true }); 
+            hls = new Hls(); 
             hls.loadSource(url); 
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
@@ -225,7 +205,6 @@
         if (isAuthorized && confirm("EJECT?")) {
             syncRef.set(null);
             urlInput.value = "";
-            currentVideoUrl = "";
         }
     }
 </script>
