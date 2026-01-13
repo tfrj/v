@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Master Pro - Secure Sync</title>
+    <title>VHS Master Pro - Realtime Sync</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -80,15 +80,15 @@
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
     
-    // --- إعدادات الحماية المحدثة ---
+    // إعدادات الأدمن المشفرة
     const adminEmail = "t@t.tt";
-    const hashedSecret = "3450c02456e3084c83321458e3792f69986b2089"; // رمز مشفر لكلمة tlfzon
+    const hashedSecret = "70b4a81867fc28063066444f24345e69317586f6"; // كلمة السر tttttt مشفرة
 
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // دالة التشفير للمقارنة
+    // دالة للتحقق من كلمة السر بنظام التشفير
     async function verifyHash(input) {
         const msgBuffer = new TextEncoder().encode(input);
         const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
@@ -97,7 +97,7 @@
         return hashHex === hashedSecret;
     }
 
-    // تتبع حالة الدخول
+    // استعادة جلسة الأدمن
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) activateAdminMode();
     });
@@ -125,7 +125,7 @@
             const isValid = await verifyHash(val);
             if (isValid) {
                 auth.signInWithEmailAndPassword(adminEmail, val)
-                    .catch(err => console.log("Login pending..."));
+                    .catch(err => console.error("Login failed"));
             }
         } else if (isAuthorized && (val.startsWith('http'))) {
             autoSyncLink(val);
@@ -151,7 +151,6 @@
         }, 1500);
     }
 
-    // --- نظام المزامنة الأصلي ---
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
