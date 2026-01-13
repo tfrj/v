@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
         :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
@@ -70,6 +71,7 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const auth = firebase.auth(); // تفعيل نظام التحقق
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
@@ -78,14 +80,24 @@
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
     
-    const passwordSecret = "1234";
+    // البيانات التي زودتني بها
+    const adminEmail = "t@t.tt";
+    const passwordSecret = "tttttt"; 
+    
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
 
+    // التحقق من حالة الدخول عند فتح الصفحة
+    auth.onAuthStateChanged(user => {
+        if (user && user.email === adminEmail) {
+            activateAdminMode();
+        }
+    });
+
     function activateAdminMode() {
         isAuthorized = true;
-        localStorage.setItem('vhs_admin', 'true');
+        // أزلت التخزين المحلي القديم واستبدلته بحالة التحقق الحقيقية من Firebase
         urlInput.value = ""; 
         urlInput.type = "text"; 
         urlInput.placeholder = "PASTE LINK TO SYNC";
@@ -93,28 +105,28 @@
         adminPanel.style.display = "flex";
     }
 
-    if (localStorage.getItem('vhs_admin') === 'true') {
-        activateAdminMode();
-    }
-
     function adminLogout() {
-        isAuthorized = false;
-        localStorage.removeItem('vhs_admin');
-        location.reload();
+        auth.signOut().then(() => {
+            isAuthorized = false;
+            location.reload();
+        });
     }
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
         
+        // إذا كتب كلمة السر تيتيتيتيتي، نقوم بتسجيل الدخول الفعلي
         if (!isAuthorized && val === passwordSecret) {
-            activateAdminMode();
+            auth.signInWithEmailAndPassword(adminEmail, passwordSecret)
+                .catch(error => {
+                    alert("Authentication Failed: " + error.message);
+                });
         } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
             autoSyncLink(val);
         }
     });
 
     function autoSyncLink(url) {
-        // تنفيذ المزامنة
         loadVideo(url);
         video.style.display = 'block';
         syncRef.set({ 
@@ -124,12 +136,10 @@
             lastUpdated: Date.now() 
         });
 
-        // التعديل الجديد: مسح النص وإبعاد التركيز فوراً
         urlInput.value = ""; 
         urlInput.placeholder = "SYNCING... PLEASE WAIT";
-        urlInput.blur(); // لإغلاق الكيبورد في الجوال وإلغاء التحديد
+        urlInput.blur(); 
         
-        // إعادة النص الافتراضي بعد ثانية واحدة
         setTimeout(() => {
             urlInput.placeholder = "PASTE LINK TO SYNC";
         }, 1500);
