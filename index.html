@@ -2,137 +2,89 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPTV Ultimate Player</title>
+    <title>تلفزيون العائلة - رمضان 2026</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        :root { --primary: #e50914; --bg: #0f0f0f; --panel: #1a1a1a; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        header { background: #000; padding: 15px; text-align: center; border-bottom: 3px solid var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .controls { padding: 15px; background: var(--panel); display: flex; gap: 10px; justify-content: center; z-index: 10; }
-        input { flex: 0.8; padding: 12px; border-radius: 5px; border: 1px solid #333; background: #000; color: #fff; outline: none; }
-        input:focus { border-color: var(--primary); }
-        button { padding: 10px 25px; background: var(--primary); color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.3s; }
-        button:hover { background: #b20710; transform: scale(1.05); }
-        .main-content { display: flex; flex: 1; overflow: hidden; }
-        #playlist { width: 350px; background: var(--panel); overflow-y: auto; border-left: 1px solid #333; display: flex; flex-direction: column; }
-        .channel-card { padding: 15px; border-bottom: 1px solid #222; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s; }
-        .channel-card:hover { background: #252525; border-right: 4px solid var(--primary); }
-        .channel-card img { width: 40px; height: 40px; object-fit: contain; background: #000; border-radius: 4px; }
-        #video-container { flex: 1; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
-        video { width: 100%; height: 100%; object-fit: contain; }
-        .status { padding: 20px; text-align: center; color: #888; font-size: 0.9em; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { background: #1a1a1a; padding: 15px; text-align: center; color: #ff3e3e; border-bottom: 2px solid #ff3e3e; }
+        .main { display: flex; flex: 1; overflow: hidden; }
+        #playlist { width: 300px; background: #111; overflow-y: auto; border-left: 1px solid #333; }
+        .channel { padding: 12px; border-bottom: 1px solid #222; cursor: pointer; transition: 0.3s; font-size: 14px; }
+        .channel:hover { background: #ff3e3e; color: white; }
+        #video-area { flex: 1; background: black; display: flex; flex-direction: column; }
+        video { width: 100%; height: 100%; background: black; }
+        .input-bar { padding: 10px; background: #1a1a1a; display: flex; gap: 5px; }
+        input { flex: 1; padding: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px 20px; background: #ff3e3e; color: white; border: none; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<header><h1>📺 IPTV PLAYER PRO</h1></header>
+<div class="header">🌙 تلفزيون العائلة - مشاهدة ممتعة</div>
 
-<div class="controls">
-    <input type="text" id="m3u-url" placeholder="ضع رابط M3U هنا..." value="">
-    <button onclick="smartFetch()">تحميل الآن</button>
+<div class="input-bar">
+    <input type="text" id="urlInput" placeholder="ضع رابط M3U هنا...">
+    <button onclick="fetchChannels()">تشغيل القنوات</button>
 </div>
 
-<div class="main-content">
-    <div id="playlist"><div class="status">جاهز للتحميل...</div></div>
-    <div id="video-container">
+<div class="main">
+    <div id="playlist">القائمة تظهر هنا...</div>
+    <div id="video-area">
         <video id="video" controls autoplay></video>
     </div>
 </div>
 
 <script>
-    const video = document.getElementById('video');
-    const playlistDiv = document.getElementById('playlist');
+    async function fetchChannels() {
+        const url = document.getElementById('urlInput').value;
+        const playlistEl = document.getElementById('playlist');
+        playlistEl.innerHTML = "جاري التحميل... انتظر ثواني";
 
-    async function smartFetch() {
-        const url = document.getElementById('m3u-url').value.trim();
-        if (!url) return alert("الرجاء إدخال الرابط");
+        // استخدام وسيط أقوى لتخطي حماية CORS
+        const finalUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        
+        // ملاحظة: إذا لم يشتغل، جرب هذا الوسيط البديل في السطر التالي:
+        // const finalUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
 
-        playlistDiv.innerHTML = '<div class="status">جاري المحاولة بالطريقة الأولى...</div>';
-
-        // قائمة بمواقع الـ Proxy للتجربة بالتتابع
-        const proxies = [
-            (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-            (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
-            (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
-        ];
-
-        let content = null;
-
-        for (let i = 0; i < proxies.length; i++) {
-            try {
-                playlistDiv.innerHTML = `<div class="status">جاري المحاولة بالطريقة (${i+1})...</div>`;
-                const response = await fetch(proxies[i](url));
-                const data = await response.json();
-                content = data.contents || data; // التعامل مع استجابات البروكسي المختلفة
-                if (content && content.includes('#EXTM3U')) break;
-            } catch (e) { console.log(`Proxy ${i} failed`); }
-        }
-
-        if (content) {
-            parseAndDisplay(content);
-        } else {
-            playlistDiv.innerHTML = '<div class="status" style="color:#ff4d4d">فشل التحميل من جميع المصادر. الرابط قد يكون منتهي الصلاحية أو محمي بقوة.</div>';
+        try {
+            const response = await fetch(finalUrl);
+            const data = await response.text();
+            parseM3U(data);
+        } catch (e) {
+            playlistEl.innerHTML = "فشل التحميل. تأكد من الرابط أو جرب متصفح آخر.";
         }
     }
 
-    function parseAndDisplay(text) {
-        const lines = text.split('\n');
-        const channels = [];
+    function parseM3U(content) {
+        const lines = content.split('\n');
+        const listEl = document.getElementById('playlist');
+        listEl.innerHTML = "";
         
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.startsWith('#EXTINF')) {
-                // استخراج الاسم
-                const titleMatch = line.match(/,(.*)$/);
-                const title = titleMatch ? titleMatch[1] : "قناة غير معروفة";
+            if (lines[i].includes('#EXTINF')) {
+                const name = lines[i].split(',')[1] || "قناة";
+                const streamUrl = lines[i+1]?.trim();
                 
-                // استخراج اللوجو إن وجد
-                const logoMatch = line.match(/tvg-logo="(.*?)"/);
-                const logo = logoMatch ? logoMatch[1] : "https://via.placeholder.com/40?text=TV";
-
-                // البحث عن الرابط في الأسطر التالية
-                let channelUrl = "";
-                for (let j = i + 1; j < lines.length; j++) {
-                    if (lines[j].trim() && !lines[j].startsWith('#')) {
-                        channelUrl = lines[j].trim();
-                        break;
-                    }
-                }
-                
-                if (channelUrl) {
-                    channels.push({ title, url: channelUrl, logo });
+                if (streamUrl && streamUrl.startsWith('http')) {
+                    const div = document.createElement('div');
+                    div.className = 'channel';
+                    div.innerText = name;
+                    div.onclick = () => play(streamUrl);
+                    listEl.appendChild(div);
                 }
             }
         }
-
-        render(channels);
     }
 
-    function render(list) {
-        playlistDiv.innerHTML = "";
-        if (list.length === 0) {
-            playlistDiv.innerHTML = '<div class="status">لم يتم العثور على قنوات. تأكد أن الرابط هو ملف M3U فعلي.</div>';
-            return;
-        }
-
-        list.forEach(ch => {
-            const item = document.createElement('div');
-            item.className = 'channel-card';
-            item.innerHTML = `<img src="${ch.logo}"> <span>${ch.title}</span>`;
-            item.onclick = () => play(ch.url);
-            playlistDiv.appendChild(item);
-        });
-    }
-
-    function play(url) {
+    function play(streamUrl) {
+        const video = document.getElementById('video');
         if (Hls.isSupported()) {
             const hls = new Hls();
-            hls.loadSource(url);
+            hls.loadSource(streamUrl);
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = url;
+        } else {
+            video.src = streamUrl;
         }
     }
 </script>
