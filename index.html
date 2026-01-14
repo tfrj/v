@@ -159,6 +159,8 @@
             background: #000;
             color: white;
             border: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .vhs-btn {
             flex: 0.4;
@@ -178,6 +180,7 @@
             cursor: pointer;
             text-align: center;
             transition: 0.3s;
+            box-sizing: border-box;
         }
         .viewer-tape.active-tape {
             border-left-color: var(--power-green);
@@ -242,7 +245,7 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
-    let currentVideoUrl = ""; // لتتبع الفيديو الشغال حالياً
+    let currentLoadedUrl = ""; // الرابط المحمل حالياً في المشغل فعلياً
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -322,27 +325,46 @@
 
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
+        
+        // إذا لم يكن هناك فيديو (Eject)
         if (!data || !data.url) {
-            currentVideoUrl = ""; // لا يوجد فيديو شغال
-            video.style.display = 'none'; video.pause(); toggleStatic(true);
-            updateTapeUI(); // تحديث ألوان الأشرطة
+            currentLoadedUrl = ""; 
+            video.style.display = 'none'; 
+            video.pause(); 
+            video.src = ""; // تفريغ المصدر منعاً لأي تعليق
+            toggleStatic(true);
+            updateTapeUI(""); 
             return;
         }
-        currentVideoUrl = data.url;
-        video.style.display = 'block'; toggleStatic(false); 
-        if (!video.src.includes(data.url)) loadVideo(data.url);
-        if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
-        else { if (!video.paused) video.pause(); }
-        if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
-        updateTapeUI(); // تحديث ألوان الأشرطة
+
+        video.style.display = 'block'; 
+        toggleStatic(false); 
+
+        // تحميل الفيديو فقط إذا كان الرابط تغير فعلاً
+        if (currentLoadedUrl !== data.url) {
+            loadVideo(data.url);
+        }
+
+        // مزامنة حالة التشغيل
+        if (data.isPlaying) { 
+            if (video.paused) video.play().catch(()=>{}); 
+        } else { 
+            if (!video.paused) video.pause(); 
+        }
+
+        // مزامنة الوقت (فقط إذا كان الفرق كبيراً)
+        if (Math.abs(video.currentTime - data.currentTime) > 3) { 
+            video.currentTime = data.currentTime; 
+        }
+        
+        updateTapeUI(data.url);
     }
 
-    // تحديث ألوان الأشرطة بناءً على الفيديو الشغال
-    function updateTapeUI() {
+    function updateTapeUI(activeUrl) {
         const tapes = document.querySelectorAll('.vhs-row, .viewer-tape');
         tapes.forEach(t => {
             const url = t.getAttribute('data-url');
-            if (url && url === currentVideoUrl) {
+            if (url && url === activeUrl) {
                 t.classList.add('playing', 'active-tape');
             } else {
                 t.classList.remove('playing', 'active-tape');
@@ -361,7 +383,7 @@
                 if (isAdmin) {
                     row.className = 'vhs-row';
                     row.innerHTML = `
-                        <input type="text" class="vhs-input" value="${tape.url}" readonly onclick="playTapeToggle('${tape.url}')">
+                        <div class="vhs-input" onclick="playTapeToggle('${tape.url}')">${tape.url.substring(0, 30)}...</div>
                         <button class="vhs-btn" onclick="playTapeToggle('${tape.url}')">PLAY</button>
                         <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>
                     `;
@@ -372,21 +394,24 @@
                 }
                 list.appendChild(row);
             });
-            updateTapeUI();
+            // استرجاع اللون الأخضر للشريط الحالي بعد إعادة بناء القائمة
+            syncRef.once('value', s => { if(s.val()) updateTapeUI(s.val().url); });
         }
     });
 
-    // دالة التشغيل أو الإيقاف (الحركة الجديدة)
     function playTapeToggle(url) {
         if (!isPoweredOn) { alert("PLEASE TURN ON TV FIRST"); return; }
         
-        // إذا كان الشريط اللي ضغطته هو نفسه اللي شغال حالياً -> افصله (Eject)
-        if (currentVideoUrl === url) {
-            syncRef.set(null); // يرجع التشويش
-        } else {
-            // إذا كان مختلف أو مافي شي شغال -> شغله
-            syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-        }
+        syncRef.once('value', (snap) => {
+            const data = snap.val();
+            // إذا كان الرابط المرسل هو نفسه الشغال حالياً -> افصل (Eject)
+            if (data && data.url === url) {
+                syncRef.set(null); 
+            } else {
+                // شغل شريط جديد
+                syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            }
+        });
     }
 
     function addNewTape() {
@@ -415,7 +440,9 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             setInterval(() => {
-                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+                if (!video.paused && isAdmin) {
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+                }
             }, 1000); 
         }
     });
@@ -428,10 +455,14 @@
 
     let hls;
     function loadVideo(url) {
+        currentLoadedUrl = url;
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
-            else { video.src = url; }
+            if (Hls.isSupported()) { 
+                hls = new Hls(); 
+                hls.loadSource(url); 
+                hls.attachMedia(video); 
+            } else { video.src = url; }
         } else { video.src = url; }
     }
 
