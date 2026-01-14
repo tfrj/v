@@ -132,6 +132,27 @@
 
         #authSection { display: block; }
         #adminSection { display: none; }
+
+        /* تسيق مكتبة الأشرطة */
+        .tape-library {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: -10px;
+        }
+        .library-title { font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 12px; text-align: center; }
+        .tapes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .vhs-tape {
+            background: #1a1a1a; height: 35px; border-left: 4px solid #333;
+            display: flex; align-items: center; padding: 0 8px; cursor: pointer;
+            transition: 0.2s; position: relative; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        }
+        .vhs-tape:hover { background: #252525; transform: scale(1.02); }
+        .tape-label {
+            background: #fff; color: #000; font-size: 9px; font-weight: bold;
+            padding: 2px 6px; width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
     </style>
 </head>
 <body> 
@@ -159,10 +180,28 @@
         </div>
         
         <div id="adminSection">
-            <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
+            <input type="text" id="videoUrl" placeholder="PASTE URL OR 'NAME#1'">
             <div class="btn-group">
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tape-library">
+        <div class="library-title">TAPE COLLECTION</div>
+        <div class="tapes-grid">
+            <div class="vhs-tape" id="tape-1-btn" onclick="selectTape(1)">
+                <div class="tape-label" id="tape-label-1">EMPTY TAPE 1</div>
+            </div>
+            <div class="vhs-tape" id="tape-2-btn" onclick="selectTape(2)">
+                <div class="tape-label" id="tape-label-2">EMPTY TAPE 2</div>
+            </div>
+            <div class="vhs-tape" id="tape-3-btn" onclick="selectTape(3)">
+                <div class="tape-label" id="tape-label-3">EMPTY TAPE 3</div>
+            </div>
+            <div class="vhs-tape" id="tape-4-btn" onclick="selectTape(4)">
+                <div class="tape-label" id="tape-label-4">EMPTY TAPE 4</div>
             </div>
         </div>
     </div>
@@ -191,6 +230,7 @@
     const db = firebase.database();
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
+    const tapesRef = db.ref('tapes'); // مرجع جديد للأشرطة
 
     function togglePower() {
         isPoweredOn = !isPoweredOn;
@@ -204,7 +244,6 @@
             overlay.style.display = 'block';
             video.style.display = 'none';
             video.pause();
-            // إيقاف التشويش والصوت تماماً عند الإطفاء
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
@@ -217,30 +256,20 @@
     }
 
     function startStaticSound() {
-        // لا تشغل الصوت أبداً إذا كان التلفزيون مطفأ
         if (!audioCtx || noiseNode || !isPoweredOn) return;
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer; 
         noiseNode.loop = true;
-        
         const gainNode = audioCtx.createGain();
         gainNode.gain.value = 0.04;
         noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() { 
-        if (noiseNode) { 
-            try { noiseNode.stop(); } catch(e) {} 
-            noiseNode = null; 
-        } 
-    }
+    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
 
     function loopNoise() {
         if (!isPoweredOn) return;
@@ -256,44 +285,52 @@
         if (show && isPoweredOn) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            stopStaticSound();
-            startStaticSound();
+            stopStaticSound(); startStaticSound();
         } else {
-            // إيقاف الصورة والصوت عند الإطفاء أو عند وجود فيديو
             canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); 
-            noiseID = null;
-            stopStaticSound();
+            cancelAnimationFrame(noiseID); noiseID = null; stopStaticSound();
         }
     }
 
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
-
         if (!data || !data.url) {
-            video.style.display = 'none'; 
-            video.pause();
-            toggleStatic(true);
+            video.style.display = 'none'; video.pause(); toggleStatic(true);
             return;
         }
-
-        video.style.display = 'block'; 
-        toggleStatic(false); 
+        video.style.display = 'block'; toggleStatic(false); 
         if (!video.src.includes(data.url)) loadVideo(data.url);
-        
-        if (data.isPlaying) {
-            if (video.paused) video.play().catch(()=>{});
-        } else {
-            if (!video.paused) video.pause();
-        }
-
-        if (Math.abs(video.currentTime - data.currentTime) > 2) {
-            video.currentTime = data.currentTime;
-        }
+        if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
+        else { if (!video.paused) video.pause(); }
+        if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
     }
 
-    video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
-    video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
+    // تحديث أسماء الأشرطة من الداتابيز
+    tapesRef.on('value', (snap) => {
+        const tapes = snap.val();
+        if (tapes) {
+            for (let i = 1; i <= 4; i++) {
+                if (tapes[i]) {
+                    document.getElementById(`tape-label-${i}`).innerText = tapes[i].name;
+                }
+            }
+        }
+    });
+
+    // اختيار الشريط للتشغيل
+    function selectTape(id) {
+        if (!isPoweredOn) return;
+        tapesRef.child(id).once('value', (snap) => {
+            const tapeData = snap.val();
+            if (tapeData && tapeData.url) {
+                syncRef.once('value', (s) => {
+                    if (!s.val() || !s.val().url) {
+                        syncRef.set({ url: tapeData.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+                    }
+                });
+            }
+        });
+    }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
@@ -306,27 +343,41 @@
         }
     });
 
-    document.getElementById('adminPass').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
-    });
-
+    // معالجة المدخلات من خانة الأدمن
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
+            // تشغيل فيديو عادي
             syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             e.target.value = "";
+        } else if (val.includes('#')) {
+            // تحديث اسم ورابط الشريط (الصيغة: رابط#رقم أو اسم#رقم)
+            const parts = val.split('#');
+            const content = parts[0];
+            const id = parts[1];
+            if (id >= 1 && id <= 4) {
+                // إذا كان المحتوى رابطاً، نحدث الرابط والاسم، إذا كان نصاً نحدث الاسم فقط
+                if (content.startsWith('http')) {
+                    tapesRef.child(id).update({ url: content });
+                } else {
+                    tapesRef.child(id).update({ name: content });
+                }
+                alert("TAPE " + id + " UPDATED!");
+                e.target.value = "";
+            }
         }
     });
 
-    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
+    document.getElementById('adminPass').addEventListener('input', (e) => {
+        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
+    });
 
     let hls;
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) {
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
-            } else { video.src = url; }
+            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
+            else { video.src = url; }
         } else { video.src = url; }
     }
 
