@@ -23,7 +23,6 @@
         .display-screen { background: #050505; padding: 10px; border-radius: 2px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #222; }
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
-        .users-count { color: var(--led-green); }
         .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: none; align-items: center; padding: 0 10px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
         .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
@@ -46,14 +45,13 @@
     <div class="vhs-deck">
         <div class="display-screen">
             <span id="status" onclick="toggleSlot()">STATUS: OFFLINE</span>
-            <span class="users-count">REC ●</span>
-        </div>
+            </div>
         <div class="slot" id="vhsSlot">
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
         <div id="adminPanel" class="admin-controls">
             <div style="width: 100%; color: var(--led-green); font-size: 11px; margin-bottom: 10px; border-left: 2px solid var(--led-green); padding-left: 10px;">
-                VIEWERS: <span id="count">0</span>
+                LIVE VIEWERS: <span id="count">0</span>
             </div>
             <button class="eject" onclick="clearDB()">EJECT</button>
             <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
