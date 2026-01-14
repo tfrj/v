@@ -54,7 +54,6 @@
             justify-content: center; 
         }
 
-        /* طبقة الشاشة المطفأة (سوداء بدون نص) */
         #tap-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -72,7 +71,6 @@
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
-        /* زر الطاقة الجديد */
         .tv-controls {
             display: flex;
             justify-content: center;
@@ -181,7 +179,22 @@
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
 
-    // دالة التحكم في الطاقة (زر Power)
+    // تهيئة Firebase أولاً لضمان وجود البيانات
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auth = firebase.auth();
+    const syncRef = db.ref('videoSync');
+
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         
@@ -189,14 +202,9 @@
             powerBtn.classList.add('active');
             overlay.style.display = 'none';
             initAudio();
-            // تحديث الشاشة بناءً على حالة Firebase
+            // طلب تحديث فوري للحالة من Firebase عند التشغيل
             syncRef.once('value', (snap) => {
-                const data = snap.val();
-                if (!data || !data.url) {
-                    toggleStatic(true);
-                } else {
-                    toggleStatic(false);
-                }
+                handleSyncUpdate(snap.val());
             });
         } else {
             powerBtn.classList.remove('active');
@@ -252,21 +260,21 @@
         }
     }
 
-    // --- Firebase Setup ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-        authDomain: "videos-5e336.firebaseapp.com",
-        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-        projectId: "videos-5e336",
-        storageBucket: "videos-5e336.firebasestorage.app",
-        messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-    };
+    // فصل منطق التحديث في دالة مستقلة لضمان استدعائها عند التشغيل
+    function handleSyncUpdate(data) {
+        if (!isPoweredOn) return; // لا تفعل شيء إذا كان التلفاز مطفأ
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const auth = firebase.auth();
-    const syncRef = db.ref('videoSync');
+        if (!data || !data.url) {
+            video.style.display = 'none'; video.pause(); 
+            toggleStatic(true);
+        } else {
+            video.style.display = 'block'; toggleStatic(false);
+            if (!video.src.includes(data.url)) loadVideo(data.url);
+            if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
+            else { if (!video.paused) video.pause(); }
+            if (Math.abs(video.currentTime - data.currentTime) > 3) { video.currentTime = data.currentTime; }
+        }
+    }
 
     video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
     video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
@@ -294,20 +302,9 @@
         }
     });
 
+    // استماع دائم للتغييرات
     syncRef.on('value', (snap) => {
-        const data = snap.val();
-        if (!data || !data.url) {
-            video.style.display = 'none'; video.pause(); 
-            if (isPoweredOn) toggleStatic(true);
-        } else {
-            if (isPoweredOn) {
-                video.style.display = 'block'; toggleStatic(false);
-                if (!video.src.includes(data.url)) loadVideo(data.url);
-                if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
-                else { if (!video.paused) video.pause(); }
-                if (Math.abs(video.currentTime - data.currentTime) > 3) { video.currentTime = data.currentTime; }
-            }
-        }
+        handleSyncUpdate(snap.val());
     });
 
     let hls;
