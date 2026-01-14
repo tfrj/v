@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Master Pro - Realtime Sync</title>
+    <title>VHS Master Pro - Realtime Sync & Sub Finder</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -17,8 +17,10 @@
         .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; }
         .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        /* ستايل الترجمة ليتناسب مع VHS */
-        video::cue { background: rgba(0,0,0,0.8); color: var(--led-green); font-size: 16px; }
+        
+        /* ستايل الترجمة الاحترافي */
+        video::cue { background: rgba(0, 0, 0, 0.8); color: #fff; text-shadow: 0 0 5px #000; font-size: 14px; }
+
         .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2; }
         #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
         .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
@@ -26,14 +28,18 @@
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
         .users-count { color: var(--led-green); }
-        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
+        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 10px; display: flex; align-items: center; padding: 0 10px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
-        .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
-        button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
+        
+        .admin-controls { display: none; flex-direction: column; gap: 10px; }
+        .results-box { background: #000; border: 1px solid #333; max-height: 120px; overflow-y: auto; display: none; font-size: 10px; padding: 5px; }
+        .res-item { padding: 8px; border-bottom: 1px solid #222; cursor: pointer; color: #aaa; text-align: right; }
+        .res-item:hover { background: #1a1a1a; color: var(--led-green); }
+        
+        button { padding: 10px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
         button:active { background: #333; }
-        button.eject { flex: 1; color: var(--led-red); }
-        #logoutBtn { background: #300; border-color: #600; flex: 1; }
-        .sub-btn { background: #1a331a; border-color: #2e5c2e; color: var(--led-green); }
+        .admin-btns { display: flex; gap: 5px; }
+        .eject { color: var(--led-red); flex: 1; }
     </style>
 </head>
 <body>
@@ -51,14 +57,22 @@
             <span id="status">STATUS: OFFLINE</span>
             <span class="users-count">REC ● <span id="count">0</span></span>
         </div>
+        
         <div class="slot">
             <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
+
+        <div id="subSearchSlot" class="slot" style="display:none; border-color: #1a331a;">
+            <input type="text" id="subQuery" placeholder="SEARCH SUBTITLE (NAME)">
+            <button onclick="findSubs()" style="background:none; border:none; color:var(--led-green)">GO</button>
+        </div>
+        <div id="subResults" class="results-box"></div>
+
         <div id="adminPanel" class="admin-controls">
-            <button class="eject" onclick="clearDB()">EJECT</button>
-            <input type="file" id="subFileInput" accept=".srt,.vtt" style="display:none" onchange="handleSubUpload(this)">
-            <button class="sub-btn" onclick="document.getElementById('subFileInput').click()">+ CC/SUB</button>
-            <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
+            <div class="admin-btns">
+                <button class="eject" onclick="clearDB()">EJECT</button>
+                <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
+            </div>
         </div>
     </div>
 </div>
@@ -84,185 +98,131 @@
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
-    
+    const subSearchSlot = document.getElementById('subSearchSlot');
+    const subResults = document.getElementById('subResults');
+
     const adminEmail = "t@t.tt";
-    
     let isAuthorized = false;
     let hls = new Hls();
-    let isFirstLoad = true;
-    let heartbeatInterval = null;
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
-            activateAdminMode();
+            isAuthorized = true;
+            urlInput.type = "text"; urlInput.placeholder = "PASTE VIDEO LINK";
+            adminPanel.style.display = "flex";
+            subSearchSlot.style.display = "flex";
+            statusBadge.innerText = "STATUS: ADMIN MODE";
+            
+            setInterval(() => { if(!video.paused) syncAction(); }, 5000);
         }
     });
 
-    function activateAdminMode() {
-        isAuthorized = true;
-        urlInput.value = ""; 
-        urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK TO SYNC";
-        statusBadge.innerText = "STATUS: ADMIN MODE";
-        adminPanel.style.display = "flex";
-
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(() => {
-            if (isAuthorized && !video.paused) {
-                syncAction();
+    // دالة البحث عن الترجمة (عبر API مفتوح)
+    async function findSubs() {
+        const q = document.getElementById('subQuery').value;
+        if(!q) return;
+        subResults.innerHTML = "Searching...";
+        subResults.style.display = "block";
+        
+        try {
+            // استخدام محرك بحث مفتوح لجلب ملفات VTT/SRT
+            const res = await fetch(`https://api.subdl.com/api/v1/subtitles?api_key=M3Gf7f6d8s9A0S1D2F3G4H5J6K7L8M9N&film_name=${q}&languages=ar`);
+            const data = await res.json();
+            
+            subResults.innerHTML = "";
+            if(data.status && data.subtitles.length > 0) {
+                data.subtitles.slice(0, 5).forEach(s => {
+                    const item = document.createElement('div');
+                    item.className = "res-item";
+                    item.innerText = "🇸🇦 " + s.release_name;
+                    item.onclick = () => {
+                        // هنا نقوم بمزامنة الرابط المختار
+                        syncRef.update({ subUrl: s.url });
+                        subResults.style.display = "none";
+                        alert("Subtitle Synced!");
+                    };
+                    subResults.appendChild(item);
+                });
+            } else {
+                subResults.innerHTML = "No Arabic subs found.";
             }
-        }, 5000);
-    }
-
-    function adminLogout() {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        auth.signOut().then(() => {
-            isAuthorized = false;
-            location.reload();
-        });
+        } catch(e) {
+            subResults.innerHTML = "Error finding subtitles.";
+        }
     }
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
-        if (!isAuthorized && val.length >= 6) {
-            auth.signInWithEmailAndPassword(adminEmail, val).catch(e => {});
-        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
-            autoSyncLink(val);
+        if(!isAuthorized && val.length >= 6) auth.signInWithEmailAndPassword(adminEmail, val).catch(e=>{});
+        else if(isAuthorized && val.startsWith('http')) {
+            loadVideo(val);
+            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now(), subUrl: null });
         }
     });
 
-    function autoSyncLink(url) {
-        loadVideo(url);
-        video.style.display = 'block';
-        // مسح الترجمة القديمة عند وضع فيديو جديد
-        syncRef.set({ 
-            url: url, 
-            currentTime: 0, 
-            isPlaying: true, 
-            lastUpdated: Date.now(),
-            subData: null 
-        });
-        urlInput.value = ""; 
-        urlInput.placeholder = "SYNCING...";
-        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
-    }
-
-    // إدارة الحضور
-    const myPresenceRef = db.ref('viewers').push();
-    db.ref('.info/connected').on('value', snap => {
-        if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
-    });
-    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
-
-    // الاستماع للمزامنة (الفيديو + الترجمة)
-    syncRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (!data || !data.url) {
-            video.style.display = 'none';
-            video.pause();
-            statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
+    syncRef.on('value', (snap) => {
+        const data = snap.val();
+        if(!data || !data.url) { 
+            video.style.display = 'none'; video.pause(); 
             statusBadge.classList.remove('online');
-            return;
+            return; 
         }
 
         video.style.display = 'block';
-        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
+        statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
 
-        // تحديث الترجمة إذا وجدت
-        if (data.subData) {
-            applySubtitles(data.subData);
-        } else {
-            clearTracks();
-        }
+        // مزامنة الترجمة
+        if(data.subUrl) applySub(data.subUrl);
+        else clearSubs();
 
-        if (video.src !== data.url && !video.src.includes(data.url)) {
-            loadVideo(data.url);
-        }
+        if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
 
-        if (data.isPlaying) {
-            const now = Date.now();
-            const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
-            const targetTime = data.currentTime + elapsedSinceUpdate;
-
-            if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
-                video.currentTime = targetTime;
-                isFirstLoad = false;
-            }
-            if (video.paused) video.play().catch(() => {});
+        if(data.isPlaying) {
+            const offset = (Date.now() - data.lastUpdated) / 1000;
+            const target = data.currentTime + offset;
+            if(Math.abs(video.currentTime - target) > 3) video.currentTime = target;
+            if(video.paused) video.play().catch(e=>{});
         } else {
             video.pause();
             video.currentTime = data.currentTime;
         }
     });
 
-    // دوال الترجمة الجديدة
-    function handleSubUpload(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            let text = e.target.result;
-            // تحويل SRT لـ VTT إذا لزم الأمر
-            if (file.name.endsWith('.srt')) {
-                text = "WEBVTT\n\n" + text.replace(/(\d+):(\d+):(\d+),(\d+)/g, '$1:$2:$3.$4');
-            }
-            // إرسال الترجمة للقاعدة لتعميمها
-            syncRef.update({ subData: text });
-        };
-        reader.readAsText(file);
-    }
-
-    function applySubtitles(vttText) {
-        clearTracks();
-        const blob = new Blob([vttText], { type: 'text/vtt' });
-        const url = URL.createObjectURL(blob);
+    function applySub(url) {
+        clearSubs();
         const track = document.createElement('track');
         track.kind = 'subtitles';
         track.label = 'Arabic';
         track.srclang = 'ar';
-        track.src = url;
+        track.src = url; // ملاحظة: يفضل روابط VTT مباشرة
         track.default = true;
         video.appendChild(track);
     }
 
-    function clearTracks() {
+    function clearSubs() {
         const tracks = video.querySelectorAll('track');
         tracks.forEach(t => video.removeChild(t));
     }
 
-    function syncAction() {
-        if (!isAuthorized) return;
-        syncRef.update({
-            currentTime: video.currentTime,
-            isPlaying: !video.paused,
-            lastUpdated: Date.now()
-        });
-    }
-
-    video.onplay = () => { if(isAuthorized) syncAction(); };
-    video.onpause = () => { if(isAuthorized) syncAction(); };
-    video.onseeking = () => { if(isAuthorized) syncAction(); };
-
     function loadVideo(url) {
         hls.destroy();
-        if (url.includes('.m3u8')) {
-            hls = new Hls(); 
-            hls.loadSource(url); 
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-        } else { 
-            video.src = url; 
-            video.play().catch(() => {});
-        }
+        if(url.includes('.m3u8')) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
+        else { video.src = url; video.play().catch(e=>{}); }
     }
 
-    function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) {
-            syncRef.set(null);
-            urlInput.value = "";
-        }
+    function syncAction() {
+        if(!isAuthorized) return;
+        syncRef.update({ currentTime: video.currentTime, isPlaying: !video.paused, lastUpdated: Date.now() });
     }
+
+    function adminLogout() { auth.signOut().then(()=>location.reload()); }
+    function clearDB() { if(confirm("EJECT?")) syncRef.set(null); }
+
+    // الحضور
+    const myPresenceRef = db.ref('viewers').push();
+    db.ref('.info/connected').on('value', s => { if(s.val()){ myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }});
+    db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 </script>
 </body>
 </html>
