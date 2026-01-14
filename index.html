@@ -2,8 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Cinema Fullscreen</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>VHS Cinema Experience</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -13,100 +13,107 @@
     <style>
         :root { --navy: #151b4e; --white: #ffffff; }
         
+        /* جعل الصفحة تغطي كامل مساحة الهاتف حتى منطقة النوتش */
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background-color: #000; font-family: 'Courier New', monospace;
-            overflow: hidden; 
+            overflow: hidden; position: fixed;
         }
 
-        /* حاوية العرض الكاملة */
-        .viewport {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
+        /* الحاوية الرئيسية بوضع ملء الشاشة المطلق */
+        .cinema-viewport {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: #000;
             display: flex;
             align-items: center;
             justify-content: center;
+            z-index: 1;
         }
 
-        /* التشويش البرمجي */
+        /* التشويش البرمجي يملأ الخلفية */
         #noise-canvas {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1; opacity: 0.8;
+            z-index: 2; opacity: 0.8;
         }
 
-        /* الفيديو - تم تعديله لعدم التخريب */
+        /* الفيديو - تم ضبطه ليغطي كامل الشاشة حرفياً */
         video { 
+            position: absolute;
+            top: 0; left: 0;
             width: 100%; height: 100%; 
-            object-fit: contain; /* يحافظ على أبعاد الفيديو الأصلية */
-            z-index: 2; display: none; 
+            object-fit: fill; /* هذا يضمن تمدد الفيديو ليملأ كل الزوايا بدون فراغات */
+            z-index: 3; display: none; 
         }
 
-        /* واجهة كلمة السر - عائمة في المنتصف */
-        .overlay-gate {
+        /* بوابة الدخول - شفافة وعائمة في المنتصف */
+        #auth-gate {
             position: absolute;
             z-index: 100;
-            width: 90%;
-            max-width: 350px;
-            background: rgba(21, 27, 78, 0.85);
+            width: 80%;
+            max-width: 300px;
+            background: rgba(21, 27, 78, 0.7);
             border: 1px solid var(--white);
-            padding: 30px 20px;
+            padding: 20px;
             text-align: center;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(8px);
+            border-radius: 2px;
         }
 
         .input-style {
             width: 100%;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0,0,0,0.5);
             border: 1px solid var(--white);
             color: var(--white);
             padding: 12px;
             text-align: center;
             font-family: inherit;
             outline: none;
+            box-sizing: border-box;
         }
 
-        /* لوحة التحكم للمشرف - تظهر فقط بعد الدخول */
+        /* لوحة المشرف - مخفية في الأسفل لتظهر عند الحاجة */
         #admin-panel {
             position: absolute;
-            bottom: 20px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 110;
-            width: 90%;
+            width: 85%;
             max-width: 400px;
             display: none;
-            background: rgba(0,0,0,0.7);
+            background: rgba(21, 27, 78, 0.9);
             padding: 15px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
         }
 
         .count-badge {
             position: absolute;
-            top: 15px; right: 15px;
-            background: rgba(0,0,0,0.6);
-            color: #00ff00; /* أخضر خفيف للعداد فقط للوضوح */
-            padding: 4px 12px;
-            font-size: 11px;
+            top: env(safe-area-inset-top, 20px); /* يراعي مكان الكاميرا في الآيفون */
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: #00ff00;
+            padding: 20px 10px;
+            font-size: 10px;
             z-index: 150;
-            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border: 1px solid rgba(0,255,0,0.3);
         }
 
-        .admin-btns { display: flex; gap: 10px; margin-top: 10px; }
-        button { flex: 1; background: #151b4e; border: 1px solid #fff; color: #fff; padding: 8px; cursor: pointer; font-size: 10px; }
+        .admin-btns { display: flex; gap: 8px; margin-top: 10px; }
+        button { flex: 1; background: #151b4e; border: 1px solid #fff; color: #fff; padding: 10px; cursor: pointer; font-size: 9px; }
     </style>
 </head>
-<body onclick="startAudio()">
+<body onclick="activateTheater()">
 
-    <div class="viewport">
-        <div class="count-badge">LIVE: <span id="user-count">0</span></div>
+    <div class="cinema-viewport">
+        <div id="user-count-badge" class="count-badge">● <span id="user-count">0</span></div>
         
         <canvas id="noise-canvas"></canvas>
-        <video id="video-player" playsinline muted></video>
+        <video id="video-player" playsinline muted autoplay></video>
 
-        <div id="auth-gate" class="overlay-gate">
+        <div id="auth-gate">
             <input type="password" id="pass-input" class="input-style" placeholder="ENTER ACCESS CODE">
         </div>
 
@@ -132,36 +139,38 @@
     const adminPanel = document.getElementById('admin-panel');
     let noiseID, audioActive = false;
 
-    // تشغيل الصوت والتشويش
-    function startAudio() {
+    // تفعيل وضع السينما (الصوت والتشويش)
+    function activateTheater() {
         if (!audioActive) {
             noiseAudio.play().then(() => { if(video.style.display === 'block') noiseAudio.pause(); }).catch(() => {});
             audioActive = true;
         }
     }
 
-    function renderNoise() {
-        canvas.width = 250; canvas.height = 180;
+    function renderStatic() {
+        canvas.width = 300; canvas.height = 200;
         const idata = ctx.createImageData(canvas.width, canvas.height);
         const b32 = new Uint32Array(idata.data.buffer);
         for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
         ctx.putImageData(idata, 0, 0);
-        noiseID = requestAnimationFrame(renderNoise);
+        noiseID = requestAnimationFrame(renderStatic);
     }
 
-    function setStatic(status) {
-        if (status) {
+    function setMode(isStreaming) {
+        if (!isStreaming) {
+            video.style.display = 'none';
             canvas.style.display = 'block';
-            if (!noiseID) renderNoise();
+            if (!noiseID) renderStatic();
             if (audioActive) noiseAudio.play().catch(() => {});
         } else {
             canvas.style.display = 'none';
+            video.style.display = 'block';
             cancelAnimationFrame(noiseID); noiseID = null;
             noiseAudio.pause();
         }
     }
 
-    // --- Firebase Logic ---
+    // --- Firebase Core (لا نلمس منطق عملك الأصلي) ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -199,17 +208,15 @@
     syncRef.on('value', snap => {
         const data = snap.val();
         if (!data || !data.url) {
-            video.style.display = 'none';
-            setStatic(true);
+            setMode(false);
             video.pause();
         } else {
-            video.style.display = 'block';
-            setStatic(false);
-            if (video.src !== data.url && !video.src.includes(data.url)) loadStream(data.url);
+            setMode(true);
+            if (video.src !== data.url && !video.src.includes(data.url)) loadAndPlay(data.url);
         }
     });
 
-    function loadStream(url) {
+    function loadAndPlay(url) {
         if (url.includes('.m3u8')) {
             const hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
         } else { video.src = url; }
