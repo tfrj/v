@@ -50,20 +50,26 @@
             justify-content: center; 
         }
 
-        /* تأثير التشويش (Static Noise) */
+        /* تأثير التشويش المتحرك (Static Noise) */
         #noise-container {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
-            display: block; /* يظهر كافتراضي */
-            opacity: 0.3; /* شفافية خفيفة ليعطي شكل كلاسيكي */
+            display: block;
+            opacity: 0.8; /* ليكون قوياً مثل الصورة */
         }
 
-        .noise {
+        .noise-canvas {
             width: 100%; height: 100%;
-            background-image: url('https://media.giphy.com/media/oEI9uWUuW3pQI/giphy.gif');
-            background-size: cover;
-            filter: grayscale(100%) contrast(150%);
+            background: url('https://media.giphy.com/media/oEI9uWUuW3pQI/giphy.gif');
+            background-size: 200px; /* حجم الحبيبات */
+            animation: static-move 0.2s infinite steps(4);
+            filter: contrast(180%) brightness(120%);
+        }
+
+        @keyframes static-move {
+            0% { background-position: 0 0; }
+            100% { background-position: 100px 100px; }
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
@@ -112,10 +118,14 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
-            <div id="noise-container"><div class="noise"></div></div>
+            <div id="noise-container"><div class="noise-canvas"></div></div>
             <video id="video" controls playsinline muted></video>
         </div>
     </div>
+
+    <audio id="static-audio" loop>
+        <source src="https://www.soundjay.com/tv-static-01.mp3" type="audio/mpeg">
+    </audio>
 
     <div class="control-panel">
         <div id="authSection">
@@ -158,6 +168,7 @@
 
     const video = document.getElementById('video');
     const noise = document.getElementById('noise-container');
+    const staticAudio = document.getElementById('static-audio');
     const urlInput = document.getElementById('videoUrl');
     const adminPass = document.getElementById('adminPass');
     const countDisplay = document.getElementById('count');
@@ -168,6 +179,18 @@
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
+
+    // وظيفة التحكم بالتشويش والصوت
+    function toggleStatic(show) {
+        if (show) {
+            noise.style.display = 'block';
+            staticAudio.play().catch(() => {}); // يحتاج تفاعل من المستخدم أول مرة
+        } else {
+            noise.style.display = 'none';
+            staticAudio.pause();
+            staticAudio.currentTime = 0;
+        }
+    }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) activateAdminMode();
@@ -193,7 +216,7 @@
         if (isAuthorized && val.startsWith('http')) {
             loadVideo(val);
             video.style.display = 'block';
-            noise.style.display = 'none'; // إخفاء التشويش عند البدء
+            toggleStatic(false);
             syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             urlInput.value = "";
         }
@@ -209,13 +232,13 @@
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
-            noise.style.display = 'block'; // إظهار التشويش إذا لم يوجد فيديو
+            toggleStatic(true);
             video.pause();
             return;
         }
 
         video.style.display = 'block';
-        noise.style.display = 'none'; // إخفاء التشويش
+        toggleStatic(false);
         
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
         
