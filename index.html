@@ -251,7 +251,7 @@
         </div>
         
         <div id="adminSection">
-            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: نشط</p>
+            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
@@ -283,7 +283,6 @@
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
 
-    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -300,13 +299,11 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة إخراج الشريط (للجميع)
     function publicEject() {
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        syncRef.set(null); // مسح الحالة في قاعدة البيانات للكل
+        syncRef.set(null);
     }
 
-    // إضافة شريط (للأدمن فقط في الـ Rules)
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
         const url = document.getElementById('newTapeUrl').value;
@@ -321,7 +318,6 @@
         if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
 
-    // تحديث الرف (المكتبة)
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
@@ -338,7 +334,6 @@
             `;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                // أي مستخدم يضغط هنا يغير الفيديو للكل
                 syncRef.set({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -373,7 +368,6 @@
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    // --- نظام التشويش الصوتي والمرئي ---
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
@@ -411,46 +405,36 @@
         }
     }
 
-    // --- نظام المزامنة الذكي ---
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
         if (!data || !data.url) {
             video.style.display = 'none'; video.pause();
             toggleStatic(true); return;
         }
-
         video.style.display = 'block'; 
         toggleStatic(false); 
+        if (!video.src.includes(data.url)) loadVideo(data.url);
 
-        // إذا تغير الرابط، حمل الفيديو الجديد
-        if (!video.src.includes(data.url)) {
-            loadVideo(data.url);
-        }
-
-        // التحكم في التشغيل/التوقف
+        // التزامن مع حالة التشغيل والإيقاف
         if (data.isPlaying) { 
             if (video.paused) video.play().catch(()=>{}); 
         } else { 
             if (!video.paused) video.pause(); 
         }
 
-        // مزامنة الوقت (حساسية 3 ثواني لمنع التقطع)
         const timeDiff = Math.abs(video.currentTime - data.currentTime);
-        if (timeDiff > 3) {
-            video.currentTime = data.currentTime;
-        }
+        if (timeDiff > 3) video.currentTime = data.currentTime;
     }
 
-    // كشف حالة المسؤول
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             
-            // تحديث الوقت للأدمن فقط ليكون هو "المرجع" للكل
+            // مراقب وقت الأدمن
             video.ontimeupdate = () => {
-                if (!video.paused) {
+                if (!video.paused && isAdmin) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
                         lastUpdated: Date.now(),
@@ -458,15 +442,23 @@
                     });
                 }
             };
+
+            // مراقب إيقاف الأدمن
+            video.onpause = () => {
+                if (isAdmin) syncRef.update({ isPlaying: false, currentTime: video.currentTime });
+            };
+
+            // مراقب تشغيل الأدمن
+            video.onplay = () => {
+                if (isAdmin) syncRef.update({ isPlaying: true, currentTime: video.currentTime });
+            };
         }
     });
 
-    // تسجيل الدخول للأدمن
     document.getElementById('adminPass').addEventListener('input', (e) => {
         if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
     });
 
-    // إضافة فيديو برابط مباشر
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
@@ -481,7 +473,6 @@
         }
     });
 
-    // استقبال التحديثات من Firebase للكل
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
     let hls;
@@ -489,9 +480,7 @@
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) { 
-                hls = new Hls(); 
-                hls.loadSource(url); 
-                hls.attachMedia(video); 
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
             } else { video.src = url; }
         } else { video.src = url; }
     }
