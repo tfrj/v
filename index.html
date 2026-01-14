@@ -11,10 +11,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        /* تطبيق درجة اللون الكحلي من الصورة المرفقة */
         :root { 
-            --target-navy: #151b4e; /* اللون الكحلي المطلوب */
-            --dark-navy: #0d1131;   /* درجة أغمق قليلاً للظلال */
+            --target-navy: #151b4e; 
+            --dark-navy: #0d1131;   
             --pure-white: #ffffff;
         }
         
@@ -28,13 +27,11 @@
             padding: 20px; 
             color: var(--pure-white);
             min-height: 100vh;
-            /* تدرج بسيط ليعطي فخامة اللون المرفق */
             background: linear-gradient(135deg, var(--target-navy) 0%, var(--dark-navy) 100%);
         }
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
 
-        /* توحيد الإطارات باللون الكحلي */
         .tv-unit { 
             background: var(--target-navy); 
             padding: 8px; 
@@ -42,6 +39,7 @@
             border: 1px solid rgba(255,255,255,0.1); 
             box-shadow: 0 15px 35px rgba(0,0,0,0.4);
         }
+
         .screen-border { 
             background: #000; 
             aspect-ratio: 16 / 9; 
@@ -51,6 +49,23 @@
             align-items: center; 
             justify-content: center; 
         }
+
+        /* تأثير التشويش (Static Noise) */
+        #noise-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+            display: block; /* يظهر كافتراضي */
+            opacity: 0.3; /* شفافية خفيفة ليعطي شكل كلاسيكي */
+        }
+
+        .noise {
+            width: 100%; height: 100%;
+            background-image: url('https://media.giphy.com/media/oEI9uWUuW3pQI/giphy.gif');
+            background-size: cover;
+            filter: grayscale(100%) contrast(150%);
+        }
+
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
         .control-panel { 
@@ -82,20 +97,10 @@
 
         .btn-group { display: flex; gap: 10px; }
         button { 
-            flex: 1; 
-            padding: 12px; 
-            background: var(--dark-navy); 
-            border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); 
-            cursor: pointer; 
-            font-family: inherit; 
-            font-size: 11px; 
-            text-transform: uppercase; 
-            border-radius: 2px;
+            flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
+            color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; border-radius: 2px;
         }
         button:hover { background: rgba(255,255,255,0.1); }
-        
-        /* زر الحذف باللون الأحمر الخفيف ليبقى واضحاً كتحذير */
         .btn-eject { color: #ff6b6b !important; border-color: rgba(255,107,107,0.2); }
 
         #authSection { display: block; }
@@ -107,6 +112,7 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
+            <div id="noise-container"><div class="noise"></div></div>
             <video id="video" controls playsinline muted></video>
         </div>
     </div>
@@ -135,7 +141,6 @@
 </div>
 
 <script>
-    // بياناتك الأصلية كما هي
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -152,6 +157,7 @@
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
+    const noise = document.getElementById('noise-container');
     const urlInput = document.getElementById('videoUrl');
     const adminPass = document.getElementById('adminPass');
     const countDisplay = document.getElementById('count');
@@ -187,6 +193,7 @@
         if (isAuthorized && val.startsWith('http')) {
             loadVideo(val);
             video.style.display = 'block';
+            noise.style.display = 'none'; // إخفاء التشويش عند البدء
             syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             urlInput.value = "";
         }
@@ -202,11 +209,16 @@
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
+            noise.style.display = 'block'; // إظهار التشويش إذا لم يوجد فيديو
             video.pause();
             return;
         }
+
         video.style.display = 'block';
+        noise.style.display = 'none'; // إخفاء التشويش
+        
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
+        
         if (data.isPlaying) {
             const now = Date.now();
             const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
@@ -226,10 +238,6 @@
         if (!isAuthorized) return;
         syncRef.update({ currentTime: video.currentTime, isPlaying: !video.paused, lastUpdated: Date.now() });
     }
-
-    video.onplay = () => { if(isAuthorized) syncAction(); };
-    video.onpause = () => { if(isAuthorized) syncAction(); };
-    video.onseeking = () => { if(isAuthorized) syncAction(); };
 
     function loadVideo(url) {
         hls.destroy();
