@@ -205,15 +205,15 @@
         </div>
         
         <div id="adminSection">
-            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">لوحة التحكم الرئيسية</p>
+            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">ADMIN PANEL</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
+                <p style="font-size: 10px; color: #aaa;">ADD NEW TAPE:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="newTapeName" placeholder="اسم الشريط">
-                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black;">+ إضافة للرف</button>
+                    <input type="text" id="newTapeName" placeholder="TAPE NAME">
+                    <input type="text" id="newTapeUrl" placeholder="VIDEO URL">
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black;">+ ADD TO SHELF</button>
                 </div>
             </div>
 
@@ -253,16 +253,15 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة مراقبة نهاية الفيديو
+    // تصفير الفيديو والتشويش عند النهاية للآدمن
     video.onended = () => {
-        // إذا كان المتصفح هو متصفح الآدمن، نقوم بمسح الرابط من الداتابيز ليعود التشويش للجميع
         if (isAdmin) {
-            syncRef.set(null);
+            syncRef.set(null); 
         }
     };
 
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط جديد";
+        const name = document.getElementById('newTapeName').value || "TAPE";
         const url = document.getElementById('newTapeUrl').value;
         if(!url) return;
         tapesRef.push({ name: name, url: url }).then(() => {
@@ -272,7 +271,7 @@
     }
 
     function deleteTape(key) {
-        if(confirm("حذف؟")) tapesRef.child(key).remove();
+        if(confirm("DELETE?")) tapesRef.child(key).remove();
     }
 
     tapesRef.on('value', (snap) => {
@@ -286,7 +285,7 @@
             el.className = 'vhs-tape';
             el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>${tape.name}`;
             el.onclick = () => {
-                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                if(!isPoweredOn) { alert("TURN TV ON!"); return; }
                 syncRef.set({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -361,15 +360,25 @@
 
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
+
+        // إصلاح التعليق عند النهاية:
         if (!data || !data.url) {
-            video.style.display = 'none'; video.pause();
-            toggleStatic(true); return;
+            video.pause();
+            video.src = ""; // حذف المصدر لمنع الصورة المعلقة
+            video.load(); 
+            video.style.display = 'none';
+            toggleStatic(true);
+            return;
         }
-        video.style.display = 'block'; toggleStatic(false); 
+
+        video.style.display = 'block'; 
+        toggleStatic(false); 
+        
         if (!video.src.includes(data.url)) {
             loadVideo(data.url);
             video.currentTime = data.currentTime;
         }
+
         if (data.isPlaying) {
             const timeDiff = (Date.now() - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
