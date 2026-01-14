@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - Pro</title>
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -40,7 +40,6 @@
             border: 1px solid rgba(255,255,255,0.1); 
             box-shadow: 0 15px 35px rgba(0,0,0,0.4);
             cursor: pointer;
-            position: relative;
         }
 
         .screen-border { 
@@ -53,23 +52,12 @@
             justify-content: center; 
         }
 
-        /* تأثير خطوط التلفاز القديم */
-        .screen-border::after {
-            content: " ";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            background-size: 100% 3px, 2px 100%;
-            pointer-events: none;
-            z-index: 5;
-        }
-
         #noise-canvas {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
+            display: block;
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
@@ -94,7 +82,7 @@
             text-align: left; 
             direction: ltr;   
         }
-        input::placeholder { color: var(--pure-white); opacity: 0.6; }
+        input::placeholder { color: var(--pure-white); opacity: 0.8; }
 
         .btn-group { display: flex; gap: 10px; margin-top: 15px; }
         button { 
@@ -108,23 +96,19 @@
 </head>
 <body onclick="initAudio()"> 
 <div class="container">
-    <div class="tv-unit" title="Click for audio">
+    <div class="tv-unit" title="Click to start system">
         <div class="screen-border">
             <canvas id="noise-canvas"></canvas>
             <video id="video" playsinline muted></video>
         </div>
     </div>
 
-    <audio id="static-audio" loop>
-        <source src="https://www.soundjay.com/tv-static-05.mp3" type="audio/mpeg">
-    </audio>
-
     <div class="control-panel">
         <div id="authSection">
             <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
         </div>
         <div id="adminSection">
-            <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL (MP4/M3U8)">
+            <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
             <div class="btn-group">
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
@@ -136,20 +120,41 @@
 <script>
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
-    const staticAudio = document.getElementById('static-audio');
     const video = document.getElementById('video');
     let noiseID;
-    let audioInitialized = false;
-    let hls = null;
+    let audioCtx, noiseNode;
     let isAdmin = false;
 
-    // --- Audio & Static Logic ---
+    // --- Audio System (White Noise Generator) ---
     function initAudio() {
-        if (!audioInitialized) {
-            staticAudio.play().then(() => {
-                if (canvas.style.display === 'none') staticAudio.pause();
-                audioInitialized = true;
-            }).catch(() => {});
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (canvas.style.display !== 'none') startStaticSound();
+    }
+
+    function startStaticSound() {
+        if (!audioCtx || noiseNode) return;
+        const bufferSize = audioCtx.sampleRate * 2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = buffer;
+        noiseNode.loop = true;
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.05; // حجم صوت الوشوشة
+        noiseNode.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        noiseNode.start();
+    }
+
+    function stopStaticSound() {
+        if (noiseNode) {
+            noiseNode.stop();
+            noiseNode = null;
         }
     }
 
@@ -172,16 +177,16 @@
         if (show) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            if (audioInitialized) staticAudio.play();
+            startStaticSound();
         } else {
             canvas.style.display = 'none';
             cancelAnimationFrame(noiseID);
             noiseID = null;
-            staticAudio.pause();
+            stopStaticSound();
         }
     }
 
-    // --- Firebase Init ---
+    // --- Firebase Configuration ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -197,32 +202,13 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
-    // --- Video Logic ---
-    function loadVideo(url) {
-        if (hls) { hls.destroy(); hls = null; }
-        
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) {
-                hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(video);
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url;
-            }
-        } else {
-            video.src = url;
-        }
-        video.play().catch(() => console.log("Waiting for interaction"));
-    }
-
-    // --- Auth Logic ---
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             
-            // تحديث الوقت في القاعدة كل 5 ثوانٍ إذا كنت الأدمن
+            // مزامنة الوقت للأدمن كل 5 ثواني
             setInterval(() => {
                 if (video.src && !video.paused) {
                     syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
@@ -238,17 +224,11 @@
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
-            syncRef.set({ 
-                url: val, 
-                currentTime: 0, 
-                isPlaying: true, 
-                lastUpdated: Date.now() 
-            });
+            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             e.target.value = "";
         }
     });
 
-    // --- Sync Logic (Real-time) ---
     syncRef.on('value', (snap) => {
         const data = snap.val();
         if (!data || !data.url) {
@@ -259,26 +239,34 @@
         } else {
             video.style.display = 'block';
             toggleStatic(false);
+            if (!video.src.includes(data.url)) loadVideo(data.url);
             
-            // تحميل الفيديو إذا كان الرابط جديداً
-            if (!video.src.includes(data.url)) {
-                loadVideo(data.url);
-            }
-
-            // مزامنة الوقت للمشاهدين فقط (ليس للأدمن لتجنب التقطيع)
+            // مزامنة الوقت للمشاهدين
             if (!isAdmin) {
-                const timeDiff = Math.abs(video.currentTime - data.currentTime);
-                if (timeDiff > 3) { // إذا زاد الفرق عن 3 ثوانٍ
+                if (Math.abs(video.currentTime - data.currentTime) > 3) {
                     video.currentTime = data.currentTime;
                 }
             }
         }
     });
 
+    let hls = null;
+    function loadVideo(url) {
+        if (hls) { hls.destroy(); hls = null; }
+        if (url.includes('.m3u8')) {
+            if (Hls.isSupported()) {
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            }
+        } else { video.src = url; }
+        video.play().catch(() => {});
+    }
+
     function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
-    
-    // بدء تشغيل الـ Noise عند التحميل
+
+    // تشغيل الوشوشة عند البداية
     toggleStatic(true);
 </script>
 </body>
