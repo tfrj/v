@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CRT Master Pro - Sync</title>
+    <title>Retro Vision Master</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -12,180 +12,175 @@
 
     <style>
         :root { 
-            --tv-body: #352f2a; 
-            --screen-bg: #121212;
-            --led-on: #00ff41; 
-            --led-off: #440000; 
+            --wood: #4d2600; 
+            --gold: #d4af37;
+            --screen-glow: rgba(0, 255, 65, 0.1);
         }
 
         body { 
-            background-color: #1a1a1a; 
-            font-family: 'Courier New', monospace; 
+            background: #0a0a0a; 
             display: flex; 
             justify-content: center; 
             align-items: center; 
             min-height: 100vh; 
             margin: 0; 
-            color: white; 
+            font-family: 'Courier New', monospace;
         }
 
-        /* هيكل التلفزيون القديم */
-        .crt-tv {
-            background: var(--tv-body);
-            padding: 40px 20px 20px 20px;
-            border-radius: 20px;
-            border-bottom: 15px solid #221e1b;
-            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
-            position: relative;
+        /* هيكل التلفزيون الخشبي */
+        .console-tv {
+            background: var(--wood);
+            border: 10px solid #3d1f00;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 50px #000, inset 0 0 100px rgba(0,0,0,0.5);
             width: 90%;
-            max-width: 600px;
+            max-width: 650px;
+            position: relative;
         }
 
-        /* إطار الشاشة المنحني */
-        .screen-frame {
-            background: #000;
-            padding: 20px;
-            border-radius: 30px;
-            box-shadow: inset 0 0 20px #000;
+        /* إطار الشاشة الذهبي */
+        .bezel {
+            background: #111;
+            padding: 15px;
+            border: 4px solid var(--gold);
+            border-radius: 50px / 20px; /* انحناء CRT */
             position: relative;
-            aspect-ratio: 4 / 3;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 30px #000;
         }
 
         video { 
             width: 100%; 
             height: 100%; 
-            object-fit: cover; 
-            border-radius: 10%;
             display: none; 
-            z-index: 2;
+            filter: contrast(1.2) brightness(1.1);
         }
 
-        /* تأثير التشويش والخطوط */
-        .crt-overlay {
+        /* تأثير الزجاج والخطوط */
+        .glass-effect {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.05));
-            background-size: 100% 3px, 3px 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
             pointer-events: none;
-            z-index: 3;
-            border-radius: 30px;
+            z-index: 5;
         }
 
         #no-signal { 
-            color: #555; 
-            font-size: 24px; 
-            font-weight: bold;
-            text-shadow: 0 0 5px #000;
+            color: var(--gold);
+            font-size: 20px;
+            text-align: center;
+            letter-spacing: 5px;
+            animation: flicker 0.1s infinite;
         }
 
-        /* لوحة التحكم الجانبية */
-        .side-panel {
-            margin-top: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 10px;
+        @keyframes flicker {
+            0% { opacity: 0.8; } 100% { opacity: 1; }
         }
 
-        .knob-container {
+        /* لوحة التحكم النحاسية */
+        .brass-panel {
+            margin-top: 25px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            background: #2a1500;
+            padding: 15px;
+            border-top: 3px solid var(--gold);
+        }
+
+        .control-unit {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            color: var(--gold);
+            font-size: 10px;
+            font-weight: bold;
         }
 
-        .power-btn {
-            width: 50px;
-            height: 50px;
-            background: #600;
-            border: 4px solid #400;
+        .dial {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(145deg, #d4af37, #8a6d1a);
             border-radius: 50%;
+            border: 2px solid #5d4300;
             cursor: pointer;
-            box-shadow: 0 4px 0 #200;
-            transition: 0.1s;
+            margin-bottom: 5px;
             position: relative;
         }
 
-        .power-btn:active {
-            transform: translateY(4px);
-            box-shadow: none;
+        .dial::after {
+            content: '';
+            position: absolute;
+            top: 5px; left: 50%;
+            width: 3px; height: 10px;
+            background: #000;
+            transform: translateX(-50%);
         }
 
-        .power-btn.active {
-            background: var(--led-on);
-            border-color: #008020;
-            box-shadow: 0 0 15px var(--led-on);
-        }
-
-        .status-led {
-            width: 10px;
-            height: 10px;
+        .status-light {
+            width: 12px; height: 12px;
             border-radius: 50%;
-            background: var(--led-off);
-            margin-bottom: 5px;
+            background: #300;
+            border: 1px solid #000;
         }
 
-        .status-led.online { background: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
+        .status-light.on { background: #0f0; box-shadow: 0 0 10px #0f0; }
 
-        .info-display {
-            font-size: 10px;
-            color: #aaa;
-            text-align: left;
-        }
-
-        .admin-buttons {
+        .admin-tray {
             display: none;
-            gap: 10px;
+            grid-column: span 3;
+            justify-content: center;
+            gap: 20px;
+            border-top: 1px solid var(--gold);
+            padding-top: 10px;
         }
 
-        .retro-btn {
-            background: #444;
-            border: none;
-            padding: 8px 15px;
-            color: #fff;
-            font-size: 10px;
+        .brass-btn {
+            background: #5d4300;
+            color: var(--gold);
+            border: 1px solid var(--gold);
+            padding: 5px 15px;
             cursor: pointer;
-            border-radius: 4px;
-            border-bottom: 3px solid #222;
+            font-size: 9px;
         }
-
-        .retro-btn:active { border-bottom: none; transform: translateY(2px); }
     </style>
 </head>
 <body>
 
-<div class="crt-tv">
-    <div class="screen-frame">
-        <div class="crt-overlay"></div>
-        <div id="no-signal">STATIC - NO SIGNAL</div>
+<div class="console-tv">
+    <div class="bezel">
+        <div class="glass-effect"></div>
+        <div id="no-signal">SEARCHING SIGNAL...</div>
         <video id="video" controls playsinline muted></video>
     </div>
 
-    <div class="side-panel">
-        <div class="info-display">
+    <div class="brass-panel">
+        <div class="control-unit">
+            <div id="authDial" class="dial"></div>
+            <span>POWER / AUTH</span>
+        </div>
+
+        <div class="control-unit">
+            <div class="status-light" id="signalLed"></div>
+            <span>SIGNAL: <span id="count">0</span></span>
+        </div>
+
+        <div class="control-unit">
             <div id="status">SYS: STANDBY</div>
-            <div>VIEWERS: <span id="count">0</span></div>
+            <span id="modeLabel">MODE: USER</span>
         </div>
 
-        <div id="adminPanel" class="admin-buttons">
-            <button class="retro-btn" onclick="clearDB()">EJECT</button>
-            <button class="retro-btn" style="background:#822" onclick="adminLogout()">OFF</button>
-        </div>
-
-        <div class="knob-container">
-            <div id="powerBtn" class="power-btn"></div>
-            <span style="font-size: 8px;">POWER / LINK</span>
+        <div id="adminPanel" class="admin-tray">
+            <button class="brass-btn" onclick="clearDB()">EJECT TAPE</button>
+            <button class="brass-btn" onclick="adminLogout()">SHUTDOWN</button>
         </div>
     </div>
 </div>
 
 <script>
+    // الحفاظ على Firebase Config كما هي في كودك الأصلي
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -202,10 +197,11 @@
     const syncRef = db.ref('videoSync');
 
     const video = document.getElementById('video');
-    const statusBadge = document.getElementById('status');
+    const statusDisplay = document.getElementById('status');
+    const signalLed = document.getElementById('signalLed');
     const countDisplay = document.getElementById('count');
     const adminPanel = document.getElementById('adminPanel');
-    const powerBtn = document.getElementById('powerBtn');
+    const authDial = document.getElementById('authDial');
     
     const adminEmail = "t@t.tt";
     let isAuthorized = false;
@@ -221,10 +217,10 @@
 
     function activateAdminMode() {
         isAuthorized = true;
-        statusBadge.innerText = "SYS: ADMIN_ACTIVE";
-        statusBadge.style.color = "#00ff41";
+        statusDisplay.innerText = "SYS: ACTIVE";
+        document.getElementById('modeLabel').innerText = "MODE: MASTER";
         adminPanel.style.display = "flex";
-        powerBtn.classList.add('active');
+        signalLed.classList.add('on');
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = setInterval(() => {
@@ -238,17 +234,17 @@
         auth.signOut().then(() => location.reload());
     }
 
-    // الزر الرئيسي لإدخال كلمة السر أو الرابط
-    powerBtn.addEventListener('click', () => {
+    // مقبض التحكم (Dial) للقيام بالعمليات
+    authDial.addEventListener('click', () => {
         let val;
         if (!isAuthorized) {
-            val = prompt("ENTER ACCESS CODE:");
+            val = prompt("ENTER MASTER ACCESS CODE:");
             if (val) {
                 auth.signInWithEmailAndPassword(adminEmail, val)
-                    .catch(() => alert("ACCESS DENIED"));
+                    .catch(() => alert("WRONG FREQUENCY - ACCESS DENIED"));
             }
         } else {
-            val = prompt("PASTE VIDEO LINK:");
+            val = prompt("TUNING: PASTE VIDEO SIGNAL (URL):");
             if (val) autoSyncLink(val);
         }
     });
@@ -264,25 +260,26 @@
         });
     }
 
-    // نظام الـ Presence (المشاهدين)
+    // التعداد والمزامنة (نفس منطق كودك الأصلي)
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // المزامنة المستمرة
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            document.getElementById('no-signal').innerText = "STATIC - NO SIGNAL";
+            document.getElementById('no-signal').innerText = "NO BROADCAST DETECTED";
+            signalLed.classList.remove('on');
             return;
         }
 
         video.style.display = 'block';
         document.getElementById('no-signal').innerText = "";
+        signalLed.classList.add('on');
 
         if (video.src !== data.url && !video.src.includes(data.url)) {
             loadVideo(data.url);
@@ -292,7 +289,6 @@
             const now = Date.now();
             const elapsed = (now - data.lastUpdated) / 1000;
             const target = data.currentTime + elapsed;
-
             if (Math.abs(video.currentTime - target) > 2 || isFirstLoad) {
                 video.currentTime = target;
                 isFirstLoad = false;
@@ -326,7 +322,7 @@
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT TAPE?")) {
+        if (isAuthorized && confirm("EJECT CURRENT BROADCAST?")) {
             syncRef.set(null);
         }
     }
