@@ -15,6 +15,8 @@
             --target-navy: #151b4e; 
             --dark-navy: #0d1131;   
             --pure-white: #ffffff;
+            --power-red: #ff4b2b;
+            --power-green: #2ecc71;
         }
         
         body { 
@@ -39,7 +41,6 @@
             border-radius: 4px; 
             border: 1px solid rgba(255,255,255,0.1); 
             box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            cursor: pointer;
             position: relative;
         }
 
@@ -53,31 +54,12 @@
             justify-content: center; 
         }
 
-        /* طبقة الشاشة المطفأة */
+        /* طبقة الشاشة المطفأة (سوداء بدون نص) */
         #tap-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #333; /* لون رمادي غامق للنص وهو طافي */
-            transition: all 0.5s ease;
-        }
-        
-        #tap-overlay.power-on {
-            background: rgba(0,0,0,0.6);
-            color: var(--pure-white);
-            display: none; /* سيختفي تماماً بعد التشغيل */
-        }
-
-        .power-text {
-            font-size: 14px;
-            letter-spacing: 4px;
-            font-weight: bold;
-            text-transform: uppercase;
         }
 
         #noise-canvas {
@@ -85,10 +67,46 @@
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
-            display: none; /* يبدأ مخفي */
+            display: none;
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
+
+        /* زر الطاقة الجديد */
+        .tv-controls {
+            display: flex;
+            justify-content: center;
+            padding: 10px 0 5px 0;
+        }
+        
+        .power-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.2);
+            background: #111;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+        
+        .power-btn.active {
+            border-color: var(--power-green);
+            box-shadow: 0 0 15px var(--power-green);
+        }
+        
+        .power-icon {
+            width: 15px;
+            height: 15px;
+            fill: var(--power-red);
+        }
+        
+        .power-btn.active .power-icon {
+            fill: var(--power-green);
+        }
 
         .control-panel { 
             background: var(--target-navy); 
@@ -107,7 +125,6 @@
             font-family: inherit; 
             font-size: 13px; 
             box-sizing: border-box; 
-            text-align: left; 
             direction: ltr;   
         }
 
@@ -121,17 +138,22 @@
         #adminSection { display: none; }
     </style>
 </head>
-<body onclick="initAudio()"> 
+<body> 
 
 <div class="container">
-    <div class="tv-unit" onclick="powerOnTV()">
+    <div class="tv-unit">
         <div class="screen-border">
-            <div id="tap-overlay">
-                <div class="power-text">POWER OFF</div>
-                <div style="font-size: 9px; margin-top: 10px; color: #222;">CLICK TO POWER ON</div>
-            </div>
+            <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline muted></video>
+        </div>
+        
+        <div class="tv-controls">
+            <div class="power-btn" id="powerBtn" onclick="togglePower()">
+                <svg class="power-icon" viewBox="0 0 24 24">
+                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
+                </svg>
+            </div>
         </div>
     </div>
 
@@ -142,7 +164,6 @@
         
         <div id="adminSection">
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
-            
             <div class="btn-group">
                 <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
@@ -156,24 +177,34 @@
     const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
+    const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
 
-    // دالة تشغيل التلفاز عند الضغط
-    function powerOnTV() {
-        if (!isPoweredOn) {
-            isPoweredOn = true;
-            overlay.classList.add('power-on');
+    // دالة التحكم في الطاقة (زر Power)
+    function togglePower() {
+        isPoweredOn = !isPoweredOn;
+        
+        if (isPoweredOn) {
+            powerBtn.classList.add('active');
             overlay.style.display = 'none';
-            initAudio(); // تشغيل محرك الصوت
-            
-            // البدء بالتشويش إذا لم يكن هناك فيديو يعمل
+            initAudio();
+            // تحديث الشاشة بناءً على حالة Firebase
             syncRef.once('value', (snap) => {
                 const data = snap.val();
                 if (!data || !data.url) {
                     toggleStatic(true);
+                } else {
+                    toggleStatic(false);
                 }
             });
+        } else {
+            powerBtn.classList.remove('active');
+            overlay.style.display = 'block';
+            video.style.display = 'none';
+            video.pause();
+            toggleStatic(false);
+            if (audioCtx) audioCtx.suspend();
         }
     }
 
@@ -181,7 +212,6 @@
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         video.muted = false;
-        // سيتم استدعاء startStaticSound داخل toggleStatic
     }
 
     function startStaticSound() {
@@ -222,6 +252,7 @@
         }
     }
 
+    // --- Firebase Setup ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
