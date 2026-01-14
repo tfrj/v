@@ -194,8 +194,14 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
+    // دالة الإطفاء/التشغيل
     function togglePower() {
         isPoweredOn = !isPoweredOn;
+        applyPowerState();
+    }
+
+    // دالة لتطبيق حالة الكهرباء فعلياً
+    function applyPowerState() {
         if (isPoweredOn) {
             powerBtn.classList.add('active');
             overlay.style.display = 'none';
@@ -219,32 +225,18 @@
 
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
-        
-        // التأكد من أن محرك الصوت يعمل
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        
         noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; 
-        noiseNode.loop = true;
-        
+        noiseNode.buffer = buffer; noiseNode.loop = true;
         const gainNode = audioCtx.createGain();
         gainNode.gain.value = 0.04;
-        
-        noiseNode.connect(gainNode); 
-        gainNode.connect(audioCtx.destination);
+        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() { 
-        if (noiseNode) { 
-            try { noiseNode.stop(); } catch(e) {}
-            noiseNode = null; 
-        } 
-    }
+    function stopStaticSound() { if (noiseNode) { try{noiseNode.stop();}catch(e){} noiseNode = null; } }
 
     function loopNoise() {
         if (!isPoweredOn) return;
@@ -261,27 +253,26 @@
         if (show) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            stopStaticSound(); // إيقاف القديم قبل تشغيل الجديد لضمان النقاء
             startStaticSound();
         } else {
             canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); 
-            noiseID = null;
+            cancelAnimationFrame(noiseID); noiseID = null;
             stopStaticSound();
         }
     }
 
     function handleSyncUpdate(data) {
-        if (!isPoweredOn) return;
-
+        // إذا حُذف الرابط (EJECT)، أطفئ التلفزيون فوراً
         if (!data || !data.url) {
-            video.style.display = 'none'; 
-            video.pause(); 
-            video.src = ""; 
-            // تشغيل الوشوشة فوراً
-            toggleStatic(true);
+            if (isPoweredOn) {
+                isPoweredOn = false;
+                applyPowerState();
+            }
             return;
         }
+
+        // إذا وجد رابط والتلفزيون مطفأ، اتركه مطفأ حتى يفتحه المستخدم يدوياً
+        if (!isPoweredOn) return;
 
         video.style.display = 'block'; 
         toggleStatic(false); 
