@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync</title>
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,40 +11,38 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
+        :root { --accent: #00ff41; --bg: #000; --panel: #0a0a0a; --border: #1a1a1a; }
         
-        body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; }
+        body { background-color: var(--bg); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; }
         
-        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
 
-        /* منطقة الفيديو فقط */
-        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #2a2a2a; position: relative; }
-        .screen-border { background: #000; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid #111; }
+        /* الشاشة - فوكس كامل على المحتوى */
+        .tv-unit { background: #111; padding: 8px; border-radius: 4px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .screen-border { background: #000; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        #no-signal { position: absolute; color: #333; font-size: 14px; font-weight: bold; letter-spacing: 2px; }
+        #no-signal { position: absolute; color: #1a1a1a; font-size: 12px; font-weight: bold; letter-spacing: 3px; }
 
-        /* شاشة الحالة (فقط كلمة أونلاين أو أوفلاين) */
-        .status-bar { 
-            background: #050505; padding: 8px 15px; border-radius: 2px; font-size: 10px; 
-            display: flex; direction: ltr; justify-content: flex-start; border: 1px solid #222; margin-top: 10px;
-        }
-        #status { color: var(--led-red); cursor: pointer; }
-        #status.online { color: var(--led-green); }
-
-        /* زر الدخول (سيكون مخفي أو بسيط جداً) */
-        #loginTrigger { 
-            margin-top: 20px; color: #222; font-size: 10px; text-decoration: none; cursor: pointer; border: none; background: none; 
-        }
-
-        /* لوحة التحكم للأدمن (مخفية تماماً) */
-        #adminArea { display: none; background: #111; padding: 15px; border-radius: 4px; margin-top: 10px; border: 1px solid #333; }
+        /* منطقة التحكم - تصميم احترافي */
+        .control-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 20px; }
         
-        input { width: 100%; background: #000; border: 1px solid #444; color: var(--led-green); padding: 10px; margin-bottom: 10px; outline: none; text-align: center; font-family: inherit; }
-        
+        .panel-title { font-size: 10px; color: #444; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 8px; display: flex; justify-content: space-between; }
+
+        /* حقول الإدخال */
+        .input-wrapper { position: relative; margin-bottom: 15px; }
+        input { width: 100%; background: #000; border: 1px solid #222; color: var(--accent); padding: 12px; outline: none; font-family: inherit; font-size: 13px; box-sizing: border-box; transition: 0.3s; }
+        input:focus { border-color: #333; }
+
+        /* الأزرار */
         .btn-group { display: flex; gap: 10px; }
-        button { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: #aaa; cursor: pointer; font-family: inherit; font-size: 11px; }
-        button:hover { background: #333; color: #fff; }
-        .eject-btn { color: var(--led-red); }
+        button { flex: 1; padding: 12px; background: #000; border: 1px solid #222; color: #666; cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; transition: 0.2s; }
+        button:hover { border-color: #444; color: #fff; }
+        .btn-danger { color: #511; }
+        .btn-danger:hover { color: #ff4444; border-color: #411; }
+
+        /* قسم الدخول الواضح */
+        #authSection { display: block; }
+        #adminSection { display: none; }
     </style>
 </head>
 <body>
@@ -52,34 +50,39 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
-            <div id="no-signal">NO SIGNAL</div>
+            <div id="no-signal">NO CONTENT</div>
             <video id="video" controls playsinline muted></video>
         </div>
     </div>
 
-    <div class="status-bar">
-        <span id="status">STATUS: OFFLINE</span>
-    </div>
-
-    <div id="adminArea">
-        <div style="font-size: 9px; color: #666; margin-bottom: 8px; display: flex; justify-content: space-between;">
-            <span>OPERATOR MODE</span>
-            <span>VIEWERS: <span id="count" style="color:var(--led-green)">0</span></span>
+    <div class="control-panel">
+        
+        <div id="authSection">
+            <div class="panel-title">SYSTEM ACCESS REQUIRED</div>
+            <div class="input-wrapper">
+                <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
+            </div>
         </div>
-        <input type="text" id="videoUrl" placeholder="PASTE LINK HERE">
-        <div class="btn-group">
-            <button class="eject-btn" onclick="clearDB()">EJECT (DELETE)</button>
-            <button onclick="adminLogout()">LOGOUT</button>
-        </div>
-    </div>
 
-    <button id="loginTrigger" onclick="toggleAuthInput()">[ ACCESS ]</button>
-    <div id="authInputArea" style="display:none; width: 100%;">
-        <input type="password" id="adminPass" placeholder="ENTER PASSWORD">
+        <div id="adminSection">
+            <div class="panel-title">
+                <span>TERMINAL ACTIVE</span>
+                <span>USERS: <span id="count" style="color:var(--accent)">0</span></span>
+            </div>
+            <div class="input-wrapper">
+                <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL (M3U8/MP4)">
+            </div>
+            <div class="btn-group">
+                <button class="btn-danger" onclick="clearDB()">EJECT STREAM</button>
+                <button onclick="adminLogout()">SYSTEM LOGOUT</button>
+            </div>
+        </div>
+
     </div>
 </div>
 
 <script>
+    // بياناتك الأصلية كما هي بدون تغيير
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -98,31 +101,24 @@
     const video = document.getElementById('video');
     const urlInput = document.getElementById('videoUrl');
     const adminPass = document.getElementById('adminPass');
-    const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
-    const adminArea = document.getElementById('adminArea');
-    const loginTrigger = document.getElementById('loginTrigger');
-    const authInputArea = document.getElementById('authInputArea');
+    const authSection = document.getElementById('authSection');
+    const adminSection = document.getElementById('adminSection');
     
     const adminEmail = "t@t.tt";
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
 
-    // إظهار/إخفاء خانة الباسورد
-    function toggleAuthInput() {
-        authInputArea.style.display = (authInputArea.style.display === 'none') ? 'block' : 'none';
-    }
-
+    // مراقبة حالة التسجيل
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) activateAdminMode();
     });
 
     function activateAdminMode() {
         isAuthorized = true;
-        adminArea.style.display = 'block';
-        loginTrigger.style.display = 'none';
-        authInputArea.style.display = 'none';
+        authSection.style.display = 'none'; // إخفاء الدخول
+        adminSection.style.display = 'block'; // إظهار التحكم
         
         setInterval(() => {
             if (isAuthorized && !video.paused) syncAction();
@@ -133,14 +129,14 @@
         auth.signOut().then(() => location.reload());
     }
 
-    // مراقبة إدخال الباسورد
+    // تسجيل الدخول التلقائي عند كتابة الباسورد (منطق كودك الأصلي)
     adminPass.addEventListener('input', () => {
         if (adminPass.value.length >= 6) {
             auth.signInWithEmailAndPassword(adminEmail, adminPass.value).catch(() => {});
         }
     });
 
-    // منطق اللصق التلقائي للأدمن
+    // منطق اللصق للأدمن (منطق كودك الأصلي)
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
         if (isAuthorized && val.startsWith('http')) {
@@ -158,21 +154,16 @@
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
-    // التزامن
+    // التزامن اللحظي للجميع (منطق كودك الأصلي)
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            statusBadge.innerText = "STATUS: OFFLINE";
-            statusBadge.classList.remove('online');
             return;
         }
 
         video.style.display = 'block';
-        statusBadge.innerText = "STATUS: ONLINE";
-        statusBadge.classList.add('online');
-
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
 
         if (data.isPlaying) {
@@ -210,9 +201,8 @@
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("DELETE CURRENT VIDEO?")) {
+        if (isAuthorized && confirm("ARE YOU SURE?")) {
             syncRef.set(null);
-            urlInput.value = "";
         }
     }
 </script>
