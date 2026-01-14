@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Master Pro - Realtime Sync</title>
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,52 +11,36 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; --bg-inner: #0a0a0a; }
+        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; --bg-inner: #050505; }
         
-        body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; overflow-x: hidden; }
+        body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; }
         
-        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
 
-        /* تحسين شكل التلفاز */
-        .tv-unit { background: var(--frame); padding: 20px; border-radius: 12px; border: 4px solid #333; box-shadow: 0 0 50px rgba(0,0,0,1); }
-        
-        .screen-border { background: #000; padding: 10px; border-radius: 6px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 20px #000; }
-        
+        /* الشاشة */
+        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #2a2a2a; box-shadow: 0 10px 40px rgba(0,0,0,1); }
+        .screen-border { background: #000; padding: 5px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid #111; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        
-        .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.3; }
-        
-        #no-signal { position: absolute; color: #fff; font-size: 18px; letter-spacing: 2px; text-align: center; text-shadow: 0 0 10px rgba(255,255,255,0.5); z-index: 1; opacity: 0.8; }
+        .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.3; }
+        #no-signal { position: absolute; color: #333; font-size: 14px; text-align: center; z-index: 1; font-weight: bold; letter-spacing: 2px; }
 
-        /* تحسين شكل مشغل الـ VHS */
-        .vhs-deck { background: #111; border-radius: 8px; padding: 20px; border-bottom: 8px solid #050505; box-shadow: 0 15px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 15px; }
+        /* المشغل */
+        .vhs-deck { background: #111; border-radius: 4px; padding: 15px; border-bottom: 5px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .display-screen { background: var(--bg-inner); padding: 10px 15px; border-radius: 2px; font-size: 11px; display: flex; justify-content: space-between; border: 1px solid #222; margin-bottom: 12px; }
 
-        .display-screen { background: var(--bg-inner); padding: 12px 15px; border-radius: 4px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222; box-shadow: inset 0 0 10px #000; }
+        #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; }
+        #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
 
-        #status { color: var(--led-red); text-shadow: 0 0 8px var(--led-red); cursor: pointer; font-weight: bold; transition: 0.3s; }
-        #status.online { color: var(--led-green); text-shadow: 0 0 8px var(--led-green); }
+        .slot { background: #000; border: 1px solid #222; height: 45px; display: none; align-items: center; padding: 0 10px; margin-bottom: 12px; }
+        input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 13px; font-family: inherit; text-align: center; }
 
-        /* تحسين فتحة الشريط */
-        .slot { background: #000; border: 2px solid #222; height: 50px; display: none; align-items: center; padding: 0 15px; border-radius: 4px; box-shadow: inset 0 5px 15px rgba(0,0,0,1); }
-        
-        input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; letter-spacing: 1px; }
-
-        /* تحسين توزيع أزرار الأدمن */
-        .admin-controls { display: none; flex-direction: column; gap: 12px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 4px; border: 1px dashed #333; }
-        
-        .admin-header { display: flex; justify-content: space-between; align-items: center; color: var(--led-green); font-size: 10px; border-bottom: 1px solid #222; padding-bottom: 8px; }
-
-        .button-group { display: flex; gap: 10px; width: 100%; }
-        
-        button { flex: 1; padding: 12px; background: #222; border: 1px solid #444; color: #eee; cursor: pointer; font-size: 11px; font-weight: bold; border-radius: 3px; transition: all 0.2s; text-transform: uppercase; }
-        
-        button:hover { background: #2a2a2a; border-color: #666; }
-        button:active { transform: translateY(2px); background: #1a1a1a; }
-        
-        button.eject { color: var(--led-red); border-color: #500; }
-        button.eject:hover { background: #300; }
-        
-        #logoutBtn { background: #151515; color: #888; border-color: #333; }
+        /* تحكم الأدمن */
+        .admin-controls { display: none; flex-direction: column; gap: 10px; padding: 10px; background: #0c0c0c; border: 1px solid #1a1a1a; }
+        .admin-info { color: #666; font-size: 10px; display: flex; justify-content: space-between; padding-bottom: 5px; border-bottom: 1px solid #1a1a1a; }
+        .btn-group { display: flex; gap: 8px; }
+        button { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #aaa; cursor: pointer; font-size: 10px; font-family: inherit; }
+        button:hover { background: #222; color: #fff; }
+        button.eject { color: #822; }
     </style>
 </head>
 <body>
@@ -65,29 +49,28 @@
     <div class="tv-unit">
         <div class="screen-border">
             <div class="crt-scanlines"></div>
-            <div id="no-signal">VIDEO SYSTEM: STANDBY</div>
+            <div id="no-signal">NO SIGNAL</div>
             <video id="video" controls playsinline muted></video>
         </div>
     </div>
 
     <div class="vhs-deck">
         <div class="display-screen">
-            <span id="status" onclick="toggleSlot()">SYSTEM: OFFLINE</span>
-            <span style="color: #444; font-size: 9px;">MASTER PRO v2.0</span>
+            <span id="status" onclick="toggleSlot()">STATUS: STANDBY</span>
         </div>
 
         <div class="slot" id="vhsSlot">
-            <input type="password" id="videoUrl" placeholder="INSERT ACCESS CODE">
+            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
         </div>
 
         <div id="adminPanel" class="admin-controls">
-            <div class="admin-header">
-                <span>CONTROL PANEL</span>
-                <span>VIEWERS: <span id="count" style="color:#fff">0</span></span>
+            <div class="admin-info">
+                <span>CONTRL: OPERATOR</span>
+                <span>VIEWERS: <span id="count" style="color:var(--led-green)">0</span></span>
             </div>
-            <div class="button-group">
-                <button class="eject" onclick="clearDB()">EJECT TAPE</button>
-                <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
+            <div class="btn-group">
+                <button class="eject" onclick="clearDB()">EJECT</button>
+                <button onclick="adminLogout()">LOGOUT</button>
             </div>
         </div>
     </div>
@@ -120,7 +103,6 @@
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
-    let heartbeatInterval = null;
 
     function toggleSlot() {
         vhsSlot.style.display = (vhsSlot.style.display === 'flex') ? 'none' : 'flex';
@@ -135,12 +117,11 @@
         vhsSlot.style.display = 'flex';
         urlInput.value = ""; 
         urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE VIDEO LINK HERE";
-        statusBadge.innerText = "SYSTEM: ADMIN";
+        urlInput.placeholder = "PASTE LINK TO SYNC";
+        statusBadge.innerText = "STATUS: OPERATOR";
         adminPanel.style.display = "flex";
 
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(() => {
+        setInterval(() => {
             if (isAuthorized && !video.paused) syncAction();
         }, 5000);
     }
@@ -163,11 +144,10 @@
         video.style.display = 'block';
         syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
         urlInput.value = ""; 
-        urlInput.placeholder = "SYNCING TAPE...";
-        setTimeout(() => { urlInput.placeholder = "PASTE VIDEO LINK HERE"; }, 1500);
+        urlInput.placeholder = "LOADING...";
+        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
     }
 
-    // العداد (مخفي للأدمن فقط)
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
@@ -179,13 +159,13 @@
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            statusBadge.innerText = isAuthorized ? "SYSTEM: ADMIN" : "SYSTEM: STANDBY";
+            statusBadge.innerText = isAuthorized ? "STATUS: OPERATOR" : "STATUS: STANDBY";
             statusBadge.classList.remove('online');
             return;
         }
 
         video.style.display = 'block';
-        statusBadge.innerText = isAuthorized ? "SYSTEM: LIVE" : "SYSTEM: SYNCED";
+        statusBadge.innerText = isAuthorized ? "STATUS: LIVE" : "STATUS: LOCKED";
         statusBadge.classList.add('online');
 
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
@@ -225,7 +205,7 @@
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT TAPE?")) {
+        if (isAuthorized && confirm("EJECT?")) {
             syncRef.set(null);
             urlInput.value = "";
         }
