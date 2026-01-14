@@ -133,7 +133,6 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
-        /* --- تصميم قسم الأشرطة الديناميكي --- */
         .tape-rack {
             margin-top: 10px;
             display: flex;
@@ -192,13 +191,18 @@
         <div id="adminSection">
             <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
             <div class="btn-group">
-                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
                 <button onclick="adminLogout()">LOGOUT</button>
+                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
             </div>
             
             <div id="tapeRack" class="tape-rack">
-                <p style="font-size: 9px; color: gray; text-align: center; margin: 10px 0 5px 0;">TAPE COLLECTION (ADMIN ONLY)</p>
+                <p style="font-size: 9px; color: gray; text-align: center; margin: 15px 0 5px 0; letter-spacing: 1px;">TAPE COLLECTION (ADMIN ONLY)</p>
+                <div id="tapesContainer"></div>
+                <div class="vhs-row" id="firstEmptyRow">
+                    <input type="text" class="vhs-input" id="newTapeInput" placeholder="PASTE URL FOR NEW TAPE...">
+                    <button class="vhs-play-btn" onclick="addNewTape()">SAVE</button>
                 </div>
+            </div>
         </div>
     </div>
 </div>
@@ -301,41 +305,33 @@
         if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
     }
 
-    // --- نظام الأشرطة الديناميكي ---
-    function renderTapes(tapes) {
-        const rack = document.getElementById('tapeRack');
-        const title = rack.querySelector('p');
-        rack.innerHTML = '';
-        rack.appendChild(title);
-
-        const tapeList = tapes ? Object.entries(tapes) : [];
-        
-        // عرض الأشرطة الموجودة
-        tapeList.forEach(([id, tape]) => {
-            const row = document.createElement('div');
-            row.className = 'vhs-row';
-            row.innerHTML = `
-                <input type="text" class="vhs-input" value="${tape.url}" readonly>
-                <button class="vhs-play-btn" onclick="playTape('${tape.url}')">PLAY</button>
-                <button class="vhs-play-btn" style="background:#444" onclick="deleteTape('${id}')">X</button>
-            `;
-            rack.appendChild(row);
-        });
-
-        // إضافة الشريط الفارغ الجديد دائماً في النهاية
-        const newRow = document.createElement('div');
-        newRow.className = 'vhs-row';
-        newRow.innerHTML = `
-            <input type="text" class="vhs-input" id="newTapeInput" placeholder="PASTE URL FOR NEW TAPE...">
-            <button class="vhs-play-btn" onclick="addNewTape()">SAVE</button>
-        `;
-        rack.appendChild(newRow);
-    }
+    // عرض الأشرطة من الداتابيز
+    collectionRef.on('value', (snap) => {
+        if (!isAdmin) return;
+        const container = document.getElementById('tapesContainer');
+        container.innerHTML = '';
+        const tapes = snap.val();
+        if (tapes) {
+            Object.entries(tapes).forEach(([id, tape]) => {
+                const row = document.createElement('div');
+                row.className = 'vhs-row';
+                row.innerHTML = `
+                    <input type="text" class="vhs-input" value="${tape.url}" readonly>
+                    <button class="vhs-play-btn" onclick="playTape('${tape.url}')">PLAY</button>
+                    <button class="vhs-play-btn" style="background:#444; flex:0.3;" onclick="deleteTape('${id}')">X</button>
+                `;
+                container.appendChild(row);
+            });
+        }
+    });
 
     function addNewTape() {
-        const url = document.getElementById('newTapeInput').value.trim();
+        const input = document.getElementById('newTapeInput');
+        const url = input.value.trim();
         if (url.startsWith('http')) {
-            collectionRef.push({ url: url });
+            collectionRef.push({ url: url }).then(() => {
+                input.value = ""; // مسح الخانة بعد الحفظ لتكون جاهزة لواحد جديد
+            });
         }
     }
 
@@ -344,15 +340,10 @@
     }
 
     function deleteTape(id) {
-        collectionRef.child(id).remove();
+        if(confirm("DELETE TAPE?")) collectionRef.child(id).remove();
     }
 
-    // استماع للأشرطة من الداتابيز
-    collectionRef.on('value', (snap) => {
-        if (isAdmin) renderTapes(snap.val());
-    });
-
-    // خانة الأدمن الأصلية (كما كانت)
+    // الخانة الأساسية فوق
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
