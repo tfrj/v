@@ -174,7 +174,7 @@
             width: 18px;
             height: 18px;
             font-size: 10px;
-            display: none; /* يظهر للآدمن فقط */
+            display: none; 
             align-items: center;
             justify-content: center;
         }
@@ -211,9 +211,9 @@
             <div class="admin-tape-controls">
                 <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
-                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
+                    <input type="text" id="newTapeName" placeholder="اسم الشريط">
+                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط">
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black;">+ إضافة للرف</button>
                 </div>
             </div>
 
@@ -253,54 +253,45 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة إضافة شريط جديد (غير محدود)
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "شريط جديد";
         const url = document.getElementById('newTapeUrl').value;
-        
-        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        
-        tapesRef.push({
-            name: name,
-            url: url,
-            timestamp: Date.now()
-        }).then(() => {
+        if(!url) return;
+        tapesRef.push({ name: name, url: url }).then(() => {
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
         });
     }
 
-    // حذف شريط (للآدمن فقط)
     function deleteTape(key) {
-        if(confirm("حذف هذا الشريط نهائياً؟")) {
-            tapesRef.child(key).remove();
-        }
+        if(confirm("حذف؟")) tapesRef.child(key).remove();
     }
 
-    // جلب وعرض الأشرطة بشكل ديناميكي
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
         const data = snap.val();
         if(!data) return;
-
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `
-                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>
-                ${tape.name}
-            `;
+            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>${tape.name}`;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                syncRef.set({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+                // تعديل هنا: المشاهد يرسل طلب تشغيل بـ وقت 0 وبصمة زمنية جديدة
+                syncRef.set({ 
+                    url: tape.url, 
+                    currentTime: 0, 
+                    isPlaying: true, 
+                    lastUpdated: Date.now(),
+                    forcePlay: Math.random() // لضمان أن المتصفح يلاحظ التغيير
+                });
             };
             shelf.appendChild(el);
         });
     });
 
-    // --- بقية وظائف كودك الأصلي ---
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         if (isPoweredOn) {
@@ -368,10 +359,26 @@
             toggleStatic(true); return;
         }
         video.style.display = 'block'; toggleStatic(false); 
-        if (!video.src.includes(data.url)) loadVideo(data.url);
-        if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
-        else { if (!video.paused) video.pause(); }
-        if (Math.abs(video.currentTime - data.currentTime) > 2) video.currentTime = data.currentTime;
+        
+        // إذا كان الرابط جديداً، قم بتحميله
+        if (!video.src.includes(data.url)) {
+            loadVideo(data.url);
+            video.currentTime = data.currentTime;
+        }
+
+        if (data.isPlaying) {
+            // حساب فرق الوقت الحقيقي
+            const timeDiff = (Date.now() - data.lastUpdated) / 1000;
+            const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
+            
+            if (Math.abs(video.currentTime - targetTime) > 2) {
+                video.currentTime = targetTime;
+            }
+            video.play().catch(()=>{});
+        } else {
+            video.pause();
+            video.currentTime = data.currentTime;
+        }
     }
 
     auth.onAuthStateChanged(user => {
@@ -379,11 +386,17 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            // تحديث العرض ليظهر أزرار الحذف للآدمن
             tapesRef.once('value', () => {}); 
             setInterval(() => {
-                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-            }, 1000); 
+                // الآدمن فقط هو من يرسل التحديثات الدورية للوقت لضمان المزامنة
+                if (!video.paused && isAdmin) {
+                    syncRef.update({ 
+                        currentTime: video.currentTime, 
+                        lastUpdated: Date.now(),
+                        isPlaying: true 
+                    });
+                }
+            }, 2000); 
         }
     });
 
