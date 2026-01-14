@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,44 +11,40 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; --bg-inner: #050505; }
+        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
         
         body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; }
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
 
-        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #2a2a2a; box-shadow: 0 10px 40px rgba(0,0,0,1); }
-        .screen-border { background: #000; padding: 5px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid #111; }
+        /* منطقة الفيديو فقط */
+        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #2a2a2a; position: relative; }
+        .screen-border { background: #000; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid #111; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.3; }
-        #no-signal { position: absolute; color: #333; font-size: 14px; text-align: center; z-index: 1; font-weight: bold; letter-spacing: 2px; }
+        #no-signal { position: absolute; color: #333; font-size: 14px; font-weight: bold; letter-spacing: 2px; }
 
-        .vhs-deck { background: #111; border-radius: 4px; padding: 15px; border-bottom: 5px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        
-        .display-screen { 
-            background: var(--bg-inner); 
-            padding: 10px 15px; 
-            border-radius: 2px; 
-            font-size: 11px; 
-            display: flex; 
-            direction: ltr; 
-            justify-content: flex-start;
-            border: 1px solid #222; 
-            margin-bottom: 12px; 
+        /* شاشة الحالة (فقط كلمة أونلاين أو أوفلاين) */
+        .status-bar { 
+            background: #050505; padding: 8px 15px; border-radius: 2px; font-size: 10px; 
+            display: flex; direction: ltr; justify-content: flex-start; border: 1px solid #222; margin-top: 10px;
+        }
+        #status { color: var(--led-red); cursor: pointer; }
+        #status.online { color: var(--led-green); }
+
+        /* زر الدخول (سيكون مخفي أو بسيط جداً) */
+        #loginTrigger { 
+            margin-top: 20px; color: #222; font-size: 10px; text-decoration: none; cursor: pointer; border: none; background: none; 
         }
 
-        #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; text-align: left; }
-        #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
-
-        .slot { background: #000; border: 1px solid #222; height: 45px; display: none; align-items: center; padding: 0 10px; margin-bottom: 12px; }
-        input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 13px; font-family: inherit; text-align: center; }
-
-        .admin-controls { display: none; flex-direction: column; gap: 10px; padding: 10px; background: #0c0c0c; border: 1px solid #1a1a1a; }
-        .admin-info { color: #666; font-size: 10px; display: flex; direction: ltr; justify-content: space-between; padding-bottom: 5px; border-bottom: 1px solid #1a1a1a; }
-        .btn-group { display: flex; gap: 8px; direction: ltr; }
-        button { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #aaa; cursor: pointer; font-size: 10px; font-family: inherit; }
-        button:hover { background: #222; color: #fff; }
-        button.eject { color: #822; }
+        /* لوحة التحكم للأدمن (مخفية تماماً) */
+        #adminArea { display: none; background: #111; padding: 15px; border-radius: 4px; margin-top: 10px; border: 1px solid #333; }
+        
+        input { width: 100%; background: #000; border: 1px solid #444; color: var(--led-green); padding: 10px; margin-bottom: 10px; outline: none; text-align: center; font-family: inherit; }
+        
+        .btn-group { display: flex; gap: 10px; }
+        button { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: #aaa; cursor: pointer; font-family: inherit; font-size: 11px; }
+        button:hover { background: #333; color: #fff; }
+        .eject-btn { color: var(--led-red); }
     </style>
 </head>
 <body>
@@ -56,31 +52,30 @@
 <div class="container">
     <div class="tv-unit">
         <div class="screen-border">
-            <div class="crt-scanlines"></div>
             <div id="no-signal">NO SIGNAL</div>
             <video id="video" controls playsinline muted></video>
         </div>
     </div>
 
-    <div class="vhs-deck">
-        <div class="display-screen">
-            <span id="status" onclick="toggleSlot()">STATUS: OFFLINE</span>
-        </div>
+    <div class="status-bar">
+        <span id="status">STATUS: OFFLINE</span>
+    </div>
 
-        <div class="slot" id="vhsSlot">
-            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
+    <div id="adminArea">
+        <div style="font-size: 9px; color: #666; margin-bottom: 8px; display: flex; justify-content: space-between;">
+            <span>OPERATOR MODE</span>
+            <span>VIEWERS: <span id="count" style="color:var(--led-green)">0</span></span>
         </div>
+        <input type="text" id="videoUrl" placeholder="PASTE LINK HERE">
+        <div class="btn-group">
+            <button class="eject-btn" onclick="clearDB()">EJECT (DELETE)</button>
+            <button onclick="adminLogout()">LOGOUT</button>
+        </div>
+    </div>
 
-        <div id="adminPanel" class="admin-controls">
-            <div class="admin-info">
-                <span>CONTRL: OPERATOR</span>
-                <span>VIEWERS: <span id="count" style="color:var(--led-green)">0</span></span>
-            </div>
-            <div class="btn-group">
-                <button class="eject" onclick="clearDB()">EJECT</button>
-                <button onclick="adminLogout()">LOGOUT</button>
-            </div>
-        </div>
+    <button id="loginTrigger" onclick="toggleAuthInput()">[ ACCESS ]</button>
+    <div id="authInputArea" style="display:none; width: 100%;">
+        <input type="password" id="adminPass" placeholder="ENTER PASSWORD">
     </div>
 </div>
 
@@ -102,18 +97,21 @@
 
     const video = document.getElementById('video');
     const urlInput = document.getElementById('videoUrl');
-    const vhsSlot = document.getElementById('vhsSlot');
+    const adminPass = document.getElementById('adminPass');
     const statusBadge = document.getElementById('status');
     const countDisplay = document.getElementById('count');
-    const adminPanel = document.getElementById('adminPanel');
+    const adminArea = document.getElementById('adminArea');
+    const loginTrigger = document.getElementById('loginTrigger');
+    const authInputArea = document.getElementById('authInputArea');
     
     const adminEmail = "t@t.tt";
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
 
-    function toggleSlot() {
-        vhsSlot.style.display = (vhsSlot.style.display === 'flex') ? 'none' : 'flex';
+    // إظهار/إخفاء خانة الباسورد
+    function toggleAuthInput() {
+        authInputArea.style.display = (authInputArea.style.display === 'none') ? 'block' : 'none';
     }
 
     auth.onAuthStateChanged(user => {
@@ -122,13 +120,10 @@
 
     function activateAdminMode() {
         isAuthorized = true;
-        vhsSlot.style.display = 'flex';
-        urlInput.value = ""; 
-        urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK TO SYNC";
-        statusBadge.innerText = "STATUS: OPERATOR";
-        adminPanel.style.display = "flex";
-
+        adminArea.style.display = 'block';
+        loginTrigger.style.display = 'none';
+        authInputArea.style.display = 'none';
+        
         setInterval(() => {
             if (isAuthorized && !video.paused) syncAction();
         }, 5000);
@@ -138,43 +133,44 @@
         auth.signOut().then(() => location.reload());
     }
 
-    urlInput.addEventListener('input', () => {
-        const val = urlInput.value.trim();
-        if (!isAuthorized && val.length >= 6) {
-            auth.signInWithEmailAndPassword(adminEmail, val).catch(() => {});
-        } else if (isAuthorized && (val.startsWith('http'))) {
-            autoSyncLink(val);
+    // مراقبة إدخال الباسورد
+    adminPass.addEventListener('input', () => {
+        if (adminPass.value.length >= 6) {
+            auth.signInWithEmailAndPassword(adminEmail, adminPass.value).catch(() => {});
         }
     });
 
-    function autoSyncLink(url) {
-        loadVideo(url);
-        video.style.display = 'block';
-        syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-        urlInput.value = ""; 
-        urlInput.placeholder = "LOADING...";
-        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
-    }
+    // منطق اللصق التلقائي للأدمن
+    urlInput.addEventListener('input', () => {
+        const val = urlInput.value.trim();
+        if (isAuthorized && val.startsWith('http')) {
+            loadVideo(val);
+            video.style.display = 'block';
+            syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+            urlInput.value = "";
+        }
+    });
 
+    // عداد المشاهدين
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
+    // التزامن
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            statusBadge.innerText = isAuthorized ? "STATUS: OPERATOR" : "STATUS: OFFLINE";
+            statusBadge.innerText = "STATUS: OFFLINE";
             statusBadge.classList.remove('online');
             return;
         }
 
         video.style.display = 'block';
-        // التعديل هنا: خليه ONLINE للمشاهد بدلاً من LOCKED
-        statusBadge.innerText = isAuthorized ? "STATUS: LIVE" : "STATUS: ONLINE";
+        statusBadge.innerText = "STATUS: ONLINE";
         statusBadge.classList.add('online');
 
         if (video.src !== data.url && !video.src.includes(data.url)) loadVideo(data.url);
@@ -214,7 +210,7 @@
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) {
+        if (isAuthorized && confirm("DELETE CURRENT VIDEO?")) {
             syncRef.set(null);
             urlInput.value = "";
         }
