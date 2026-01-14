@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Master Pro - Realtime Sync</title>
+    <title>VHS Master Pro - Fullscreen Sync</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -11,50 +11,82 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root { --frame: #1a1a1a; --led-green: #00ff41; --led-red: #ff4444; }
-        body { background-color: #000; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; color: white; overflow-x: hidden; }
-        .container { width: 100%; max-width: 500px; }
-        .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #333; box-shadow: 0 0 40px rgba(0,0,0,1); position: relative; }
-        .screen-border { background: #000; padding: 10px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.2; }
-        #no-signal { position: absolute; color: #fff; font-size: 20px; text-align: center; text-shadow: 2px 2px #000; z-index: 1; }
-        .vhs-deck { background: #111; margin-top: 15px; border-radius: 4px; padding: 20px; border-bottom: 6px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .display-screen { background: #050505; padding: 10px; border-radius: 2px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #222; }
-        #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); }
-        #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
-        .users-count { color: var(--led-green); }
-        .slot { background: #000; border: 2px solid #222; height: 45px; margin-bottom: 15px; display: flex; align-items: center; padding: 0 10px; }
-        input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 14px; font-family: inherit; text-align: center; }
-        .admin-controls { display: none; gap: 10px; flex-wrap: wrap; }
-        button { flex: 2; padding: 12px; background: #222; border: 1px solid #444; color: #ddd; cursor: pointer; font-size: 10px; font-weight: bold; }
-        button:active { background: #333; }
-        button.eject { flex: 1; color: var(--led-red); }
-        #logoutBtn { background: #300; border-color: #600; flex: 1; }
+        :root { --led-green: #00ff41; --led-red: #ff4444; --glass: rgba(0, 0, 0, 0.7); }
+        
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background-color: #000; font-family: 'Courier New', monospace; 
+            overflow: hidden; 
+        }
+
+        /* جعل مشغل الفيديو يملأ الشاشة بالكامل */
+        .video-wrapper {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; display: flex; align-items: center; justify-content: center;
+        }
+        video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+        /* تأثير الـ CRT القديم فوق الفيديو */
+        .crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 3px; pointer-events: none; z-index: 2; opacity: 0.3;
+        }
+
+        /* لوحة التحكم العائمة */
+        .admin-floating-panel {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10; width: 90%; max-width: 400px;
+            background: var(--glass); backdrop-filter: blur(5px);
+            padding: 15px; border-radius: 12px; border: 1px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            transition: opacity 0.3s; opacity: 0.4;
+        }
+        .admin-floating-panel:hover { opacity: 1; }
+
+        .info-bar { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 10px; color: #aaa; }
+        #status.online { color: var(--led-green); }
+
+        .input-box { background: rgba(0,0,0,0.5); border: 1px solid #444; padding: 10px; border-radius: 5px; }
+        input { 
+            width: 100%; background: transparent; border: none; 
+            color: var(--led-green); outline: none; font-size: 14px; text-align: center;
+        }
+
+        .admin-buttons { display: none; margin-top: 10px; gap: 5px; }
+        button { 
+            flex: 1; padding: 8px; font-size: 10px; cursor: pointer;
+            background: #222; border: 1px solid #444; color: white; border-radius: 4px;
+        }
+        button.eject { color: var(--led-red); border-color: #600; }
+
+        #no-signal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 24px; text-shadow: 0 0 10px #ff0000; z-index: 0;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="tv-unit">
-        <div class="screen-border">
-            <div class="crt-scanlines"></div>
-            <div id="no-signal">NO SIGNAL</div>
-            <video id="video" controls playsinline muted></video>
-        </div>
+<div class="video-wrapper">
+    <div id="no-signal">NO SIGNAL</div>
+    <video id="video" playsinline muted></video>
+    <div class="crt-overlay"></div>
+</div>
+
+<div class="admin-floating-panel">
+    <div class="info-bar">
+        <span id="status">STATUS: OFFLINE</span>
+        <span>VIEWERS: <span id="count" style="color:var(--led-green)">0</span></span>
     </div>
-    <div class="vhs-deck">
-        <div class="display-screen">
-            <span id="status">STATUS: OFFLINE</span>
-            <span class="users-count">REC ● <span id="count">0</span></span>
-        </div>
-        <div class="slot">
-            <input type="password" id="videoUrl" placeholder="ENTER ACCESS CODE">
-        </div>
-        <div id="adminPanel" class="admin-controls">
-            <button class="eject" onclick="clearDB()">EJECT</button>
-            <button id="logoutBtn" onclick="adminLogout()">LOGOUT</button>
-        </div>
+
+    <div class="input-box">
+        <input type="password" id="videoUrl" placeholder="ACCESS CODE / PASTE LINK">
+    </div>
+
+    <div id="adminPanel" class="admin-buttons">
+        <button class="eject" onclick="clearDB()">EJECT (حذف)</button>
+        <button onclick="adminLogout()">LOGOUT (خروج)</button>
     </div>
 </div>
 
@@ -81,12 +113,19 @@
     const adminPanel = document.getElementById('adminPanel');
     
     const adminEmail = "t@t.tt";
-    // ملاحظة: تم حذف passwordSecret من هنا لغرض التشفير والأمان
-    
     let isAuthorized = false;
     let hls = new Hls();
     let isFirstLoad = true;
     let heartbeatInterval = null;
+
+    // تفعيل وضع الفول سكرين عند الضغط على أي مكان (سياسة المتصفح)
+    document.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            // اختياري: يمكنك تفعيلها إذا أردت إجبار الشاشة كاملة
+            // document.documentElement.requestFullscreen().catch(e => {});
+        }
+        if (video.paused) video.play().catch(() => {});
+    }, {once: true});
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === adminEmail) {
@@ -96,10 +135,10 @@
 
     function activateAdminMode() {
         isAuthorized = true;
-        urlInput.value = ""; 
         urlInput.type = "text"; 
-        urlInput.placeholder = "PASTE LINK TO SYNC";
-        statusBadge.innerText = "STATUS: ADMIN MODE";
+        urlInput.placeholder = "PASTE LINK HERE";
+        statusBadge.innerText = "STATUS: ADMIN LIVE";
+        statusBadge.classList.add('online');
         adminPanel.style.display = "flex";
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -111,59 +150,47 @@
     }
 
     function adminLogout() {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        auth.signOut().then(() => {
-            isAuthorized = false;
-            location.reload();
-        });
+        auth.signOut().then(() => location.reload());
     }
 
     urlInput.addEventListener('input', () => {
         const val = urlInput.value.trim();
-        
-        // التحقق من كلمة السر عبر Firebase مباشرة بدلاً من المقارنة اليدوية
         if (!isAuthorized && val.length >= 6) {
-            auth.signInWithEmailAndPassword(adminEmail, val)
-                .catch(error => { 
-                    // لا يتم إظهار خطأ هنا للسماح للمستخدم بإكمال الكتابة بسلاسة
-                });
-        } else if (isAuthorized && (val.startsWith('http://') || val.startsWith('https://'))) {
+            auth.signInWithEmailAndPassword(adminEmail, val).catch(() => {});
+        } else if (isAuthorized && (val.startsWith('http'))) {
             autoSyncLink(val);
         }
     });
 
     function autoSyncLink(url) {
         loadVideo(url);
-        video.style.display = 'block';
         syncRef.set({ 
             url: url, 
             currentTime: 0, 
             isPlaying: true, 
             lastUpdated: Date.now() 
         });
-        urlInput.value = ""; 
-        urlInput.placeholder = "SYNCING... PLEASE WAIT";
-        urlInput.blur(); 
-        setTimeout(() => { urlInput.placeholder = "PASTE LINK TO SYNC"; }, 1500);
+        urlInput.value = "";
     }
 
+    // تواجد المشاهدين
     const myPresenceRef = db.ref('viewers').push();
     db.ref('.info/connected').on('value', snap => {
         if (snap.val()) { myPresenceRef.set(true); myPresenceRef.onDisconnect().remove(); }
     });
     db.ref('viewers').on('value', s => countDisplay.innerText = s.numChildren());
 
+    // الاستماع للتغييرات من الفايربيز
     syncRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data || !data.url) {
-            video.style.display = 'none';
-            video.pause();
-            statusBadge.innerText = isAuthorized ? "STATUS: ADMIN MODE" : "STATUS: NO SIGNAL";
+            video.style.opacity = '0';
+            statusBadge.innerText = "STATUS: NO SIGNAL";
             statusBadge.classList.remove('online');
             return;
         }
 
-        video.style.display = 'block';
+        video.style.opacity = '1';
         statusBadge.innerText = isAuthorized ? "STATUS: ADMIN LIVE" : "STATUS: SYNCED";
         statusBadge.classList.add('online');
 
@@ -173,14 +200,14 @@
 
         if (data.isPlaying) {
             const now = Date.now();
-            const elapsedSinceUpdate = (now - data.lastUpdated) / 1000;
-            const targetTime = data.currentTime + elapsedSinceUpdate;
+            const elapsed = (now - data.lastUpdated) / 1000;
+            const targetTime = data.currentTime + elapsed;
 
-            if (Math.abs(video.currentTime - targetTime) > 2 || isFirstLoad) {
+            if (Math.abs(video.currentTime - targetTime) > 3 || isFirstLoad) {
                 video.currentTime = targetTime;
                 isFirstLoad = false;
             }
-            if (video.paused) video.play().catch(() => {});
+            video.play().catch(() => {});
         } else {
             video.pause();
             video.currentTime = data.currentTime;
@@ -198,7 +225,6 @@
 
     video.onplay = () => { if(isAuthorized) syncAction(); };
     video.onpause = () => { if(isAuthorized) syncAction(); };
-    video.onseeking = () => { if(isAuthorized) syncAction(); };
 
     function loadVideo(url) {
         hls.destroy();
@@ -206,17 +232,14 @@
             hls = new Hls(); 
             hls.loadSource(url); 
             hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
         } else { 
             video.src = url; 
-            video.play().catch(() => {});
         }
     }
 
     function clearDB() {
-        if (isAuthorized && confirm("EJECT?")) {
+        if (isAuthorized && confirm("حذف الرابط الحالي؟")) {
             syncRef.set(null);
-            urlInput.value = "";
         }
     }
 </script>
