@@ -52,7 +52,6 @@
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            cursor: pointer; /* ليشعر المشاهد بضرورة الضغط */
         }
 
         #tap-overlay {
@@ -60,12 +59,6 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            font-size: 12px;
-            color: #444;
         }
 
         #noise-canvas {
@@ -181,20 +174,20 @@
             width: 18px;
             height: 18px;
             font-size: 10px;
-            display: none; 
+            display: none; /* يظهر للآدمن فقط */
             align-items: center;
             justify-content: center;
         }
     </style>
 </head>
-<body onclick="handleUserInteraction()"> 
+<body> 
 
 <div class="container">
     <div class="tv-unit">
-        <div class="screen-border" id="screenClickArea">
-            <div id="tap-overlay">TAP TO POWER ON</div>
+        <div class="screen-border">
+            <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
-            <video id="video" playsinline></video>
+            <video id="video" controls playsinline muted></video>
         </div>
         
         <div class="tv-controls">
@@ -212,15 +205,15 @@
         </div>
         
         <div id="adminSection">
-            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">ADMIN PANEL</p>
+            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">لوحة التحكم الرئيسية</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">ADD NEW TAPE:</p>
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="newTapeName" placeholder="TAPE NAME">
-                    <input type="text" id="newTapeUrl" placeholder="VIDEO URL">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black;">+ ADD TO SHELF</button>
+                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
+                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
                 </div>
             </div>
 
@@ -243,7 +236,6 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
-    let currentSyncData = null;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -261,66 +253,54 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // تفعيل الصوت عند أي لمسة للمشاهد لكسر حظر المتصفح
-    function handleUserInteraction() {
-        if (!audioCtx) initAudio();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        if (isPoweredOn && currentSyncData && video.paused) {
-            video.play().catch(e => console.log("Still blocked"));
-        }
-    }
-
-    video.onended = () => {
-        if (isAdmin) syncRef.set(null);
-        else localEject();
-    };
-
-    function localEject() {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-        video.style.display = 'none';
-        toggleStatic(true);
-    }
-
+    // وظيفة إضافة شريط جديد (غير محدود)
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "TAPE";
+        const name = document.getElementById('newTapeName').value || "شريط جديد";
         const url = document.getElementById('newTapeUrl').value;
-        if(!url) return;
-        tapesRef.push({ name: name, url: url }).then(() => {
+        
+        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
+        
+        tapesRef.push({
+            name: name,
+            url: url,
+            timestamp: Date.now()
+        }).then(() => {
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
         });
     }
 
+    // حذف شريط (للآدمن فقط)
     function deleteTape(key) {
-        if(confirm("DELETE?")) tapesRef.child(key).remove();
+        if(confirm("حذف هذا الشريط نهائياً؟")) {
+            tapesRef.child(key).remove();
+        }
     }
 
+    // جلب وعرض الأشرطة بشكل ديناميكي
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
         const data = snap.val();
         if(!data) return;
+
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>${tape.name}`;
+            el.innerHTML = `
+                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>
+                ${tape.name}
+            `;
             el.onclick = () => {
-                if(!isPoweredOn) { alert("TURN TV ON!"); return; }
-                syncRef.set({ 
-                    url: tape.url, 
-                    currentTime: 0, 
-                    isPlaying: true, 
-                    lastUpdated: Date.now(),
-                    forcePlay: Math.random()
-                });
+                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                syncRef.set({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             };
             shelf.appendChild(el);
         });
     });
 
+    // --- بقية وظائف كودك الأصلي ---
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         if (isPoweredOn) {
@@ -330,7 +310,7 @@
             syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
             powerBtn.classList.remove('active');
-            overlay.style.display = 'flex';
+            overlay.style.display = 'block';
             video.style.display = 'none';
             video.pause();
             toggleStatic(false);
@@ -341,6 +321,7 @@
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
+        video.muted = false;
     }
 
     function startStaticSound() {
@@ -372,7 +353,7 @@
         if (show && isPoweredOn) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            startStaticSound();
+            stopStaticSound(); startStaticSound();
         } else {
             canvas.style.display = 'none';
             cancelAnimationFrame(noiseID); noiseID = null;
@@ -381,36 +362,16 @@
     }
 
     function handleSyncUpdate(data) {
-        currentSyncData = data;
         if (!isPoweredOn) return;
-
         if (!data || !data.url) {
-            localEject();
-            return;
+            video.style.display = 'none'; video.pause();
+            toggleStatic(true); return;
         }
-
-        video.style.display = 'block'; 
-        toggleStatic(false); 
-        
-        if (!video.src || !video.src.includes(data.url)) {
-            loadVideo(data.url);
-            video.currentTime = data.currentTime;
-        }
-
-        if (data.isPlaying) {
-            const timeDiff = (Date.now() - data.lastUpdated) / 1000;
-            const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
-            if (Math.abs(video.currentTime - targetTime) > 3) video.currentTime = targetTime;
-            
-            // محاولة التشغيل مع كتم الصوت إذا فشل التشغيل العادي
-            video.play().catch(() => {
-                video.muted = true;
-                video.play();
-                console.log("Muted autoplay started");
-            });
-        } else {
-            video.pause();
-        }
+        video.style.display = 'block'; toggleStatic(false); 
+        if (!video.src.includes(data.url)) loadVideo(data.url);
+        if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
+        else { if (!video.paused) video.pause(); }
+        if (Math.abs(video.currentTime - data.currentTime) > 2) video.currentTime = data.currentTime;
     }
 
     auth.onAuthStateChanged(user => {
@@ -418,11 +379,11 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            // تحديث العرض ليظهر أزرار الحذف للآدمن
+            tapesRef.once('value', () => {}); 
             setInterval(() => {
-                if (!video.paused && isAdmin) {
-                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now(), isPlaying: true });
-                }
-            }, 2000); 
+                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
+            }, 1000); 
         }
     });
 
