@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync - The Return of Noise</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -88,7 +88,6 @@
             align-items: center;
             justify-content: center;
             transition: all 0.3s;
-            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
         }
         
         .power-btn.active {
@@ -121,7 +120,6 @@
             padding: 12px; 
             outline: none; 
             font-family: inherit; 
-            font-size: 13px; 
             box-sizing: border-box; 
             direction: ltr;   
         }
@@ -194,14 +192,8 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
 
-    // دالة الإطفاء/التشغيل
     function togglePower() {
         isPoweredOn = !isPoweredOn;
-        applyPowerState();
-    }
-
-    // دالة لتطبيق حالة الكهرباء فعلياً
-    function applyPowerState() {
         if (isPoweredOn) {
             powerBtn.classList.add('active');
             overlay.style.display = 'none';
@@ -213,7 +205,6 @@
             video.style.display = 'none';
             video.pause();
             toggleStatic(false);
-            if (audioCtx) audioCtx.suspend();
         }
     }
 
@@ -225,11 +216,16 @@
 
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        
         noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; noiseNode.loop = true;
+        noiseNode.buffer = buffer; 
+        noiseNode.loop = true;
+        
         const gainNode = audioCtx.createGain();
         gainNode.gain.value = 0.04;
         noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
@@ -253,6 +249,7 @@
         if (show) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
+            stopStaticSound();
             startStaticSound();
         } else {
             canvas.style.display = 'none';
@@ -262,21 +259,18 @@
     }
 
     function handleSyncUpdate(data) {
-        // إذا حُذف الرابط (EJECT)، أطفئ التلفزيون فوراً
+        if (!isPoweredOn) return;
+
         if (!data || !data.url) {
-            if (isPoweredOn) {
-                isPoweredOn = false;
-                applyPowerState();
-            }
+            video.style.display = 'none'; 
+            video.pause();
+            // نداء مباشر للتشويش عند الحذف
+            toggleStatic(true);
             return;
         }
 
-        // إذا وجد رابط والتلفزيون مطفأ، اتركه مطفأ حتى يفتحه المستخدم يدوياً
-        if (!isPoweredOn) return;
-
         video.style.display = 'block'; 
         toggleStatic(false); 
-        
         if (!video.src.includes(data.url)) loadVideo(data.url);
         
         if (data.isPlaying) {
@@ -285,12 +279,12 @@
             if (!video.paused) video.pause();
         }
 
-        const timeDiff = Math.abs(video.currentTime - data.currentTime);
-        if (timeDiff > 2) {
+        if (Math.abs(video.currentTime - data.currentTime) > 2) {
             video.currentTime = data.currentTime;
         }
     }
 
+    // باقي دوال Firebase الأصلية بدون أي تغيير
     video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
     video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
 
@@ -300,9 +294,7 @@
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             setInterval(() => {
-                if (!video.paused && isAdmin) {
-                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
-                }
+                if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
             }, 1000); 
         }
     });
