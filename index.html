@@ -133,7 +133,6 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
-        /* --- استايل الأشرطة الجديد --- */
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
         .vhs-shelf { 
             display: flex; 
@@ -149,21 +148,35 @@
             padding: 12px 8px;
             cursor: pointer;
             font-size: 11px;
-            width: 110px;
+            width: 100px;
             text-align: center;
             border-radius: 2px;
             box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
             transition: all 0.2s;
             border-top: 1px solid rgba(255,255,255,0.1);
             position: relative;
+            word-break: break-all;
         }
         .vhs-tape:hover { transform: translateY(-5px) scale(1.05); background: #333; }
         
         .admin-tape-controls {
-            display: none; /* يظهر فقط للآدمن */
             margin-top: 10px;
             border-top: 1px dashed rgba(255,255,255,0.3);
             padding-top: 10px;
+        }
+        .delete-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--power-red);
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: none; /* يظهر للآدمن فقط */
+            align-items: center;
+            justify-content: center;
         }
     </style>
 </head>
@@ -192,27 +205,27 @@
         </div>
         
         <div id="adminSection">
-            <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
-            <div class="btn-group">
-                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
-                <button onclick="adminLogout()">LOGOUT</button>
-            </div>
+            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">لوحة التحكم الرئيسية</p>
+            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
-            <div class="admin-tape-controls" id="adminTapePanel" style="display:block;">
-                <p style="font-size: 10px; color: var(--power-green);">ADMIN: تحديث روابط الأشرطة</p>
+            <div class="admin-tape-controls">
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="tape1_url" placeholder="رابط شريط 1 الجديد" style="font-size: 10px; padding: 5px;">
-                    <input type="text" id="tape2_url" placeholder="رابط شريط 2 الجديد" style="font-size: 10px; padding: 5px;">
-                    <input type="text" id="tape3_url" placeholder="رابط شريط 3 الجديد" style="font-size: 10px; padding: 5px;">
-                    <button onclick="updateTapeLinks()" style="padding: 5px; font-size: 9px; background: var(--power-green); color: black;">حفظ التغييرات</button>
+                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
+                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
                 </div>
+            </div>
+
+            <div class="btn-group">
+                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT TV</button>
+                <button onclick="adminLogout()">LOGOUT</button>
             </div>
         </div>
     </div>
 
     <div class="vhs-library-title">هنا الأشرطة المتوفرة:</div>
-    <div class="vhs-shelf" id="vhsShelf">
-        </div>
+    <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
 <script>
@@ -238,51 +251,56 @@
     const db = firebase.database();
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
-    const tapesRef = db.ref('tapesLibrary'); // فرع الأشرطة
+    const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة الآدمن لتحديث الروابط في الداتابيز
-    function updateTapeLinks() {
-        const t1 = document.getElementById('tape1_url').value;
-        const t2 = document.getElementById('tape2_url').value;
-        const t3 = document.getElementById('tape3_url').value;
+    // وظيفة إضافة شريط جديد (غير محدود)
+    function addNewTape() {
+        const name = document.getElementById('newTapeName').value || "شريط جديد";
+        const url = document.getElementById('newTapeUrl').value;
         
-        const updates = {};
-        if(t1) updates['tape1'] = { name: "شريط 1", url: t1 };
-        if(t2) updates['tape2'] = { name: "شريط 2", url: t2 };
-        if(t3) updates['tape3'] = { name: "شريط 3", url: t3 };
+        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
         
-        tapesRef.update(updates).then(() => alert("تم تحديث الأشرطة للجميع!"));
+        tapesRef.push({
+            name: name,
+            url: url,
+            timestamp: Date.now()
+        }).then(() => {
+            document.getElementById('newTapeName').value = "";
+            document.getElementById('newTapeUrl').value = "";
+        });
     }
 
-    // جلب الأشرطة وعرضها للمشاهدين (تتحدث تلقائياً عند تغييرها من الآدمن)
+    // حذف شريط (للآدمن فقط)
+    function deleteTape(key) {
+        if(confirm("حذف هذا الشريط نهائياً؟")) {
+            tapesRef.child(key).remove();
+        }
+    }
+
+    // جلب وعرض الأشرطة بشكل ديناميكي
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
-        shelf.innerHTML = ""; // مسح القديم
-        const data = snap.val() || {
-            tape1: { name: "شريط 1", url: "" },
-            tape2: { name: "شريط 2", url: "" },
-            tape3: { name: "شريط 3", url: "" }
-        };
-        
+        shelf.innerHTML = "";
+        const data = snap.val();
+        if(!data) return;
+
         Object.keys(data).forEach(key => {
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerText = tape.name;
+            el.innerHTML = `
+                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>
+                ${tape.name}
+            `;
             el.onclick = () => {
-                if(!tape.url) { alert("هذا الشريط فارغ حالياً"); return; }
-                insertTape(tape.url);
+                if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
+                syncRef.set({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
             };
             shelf.appendChild(el);
         });
     });
 
-    function insertTape(url) {
-        if (!isPoweredOn) { alert("يرجى تشغيل التلفزيون أولاً!"); return; }
-        syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-    }
-
-    // --- بقية كودك الأصلي بدون أي تعديل ---
+    // --- بقية وظائف كودك الأصلي ---
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         if (isPoweredOn) {
@@ -308,7 +326,6 @@
 
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
-        if (audioCtx.state === 'suspended') audioCtx.resume();
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -336,8 +353,7 @@
         if (show && isPoweredOn) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            stopStaticSound();
-            startStaticSound();
+            stopStaticSound(); startStaticSound();
         } else {
             canvas.style.display = 'none';
             cancelAnimationFrame(noiseID); noiseID = null;
@@ -358,14 +374,13 @@
         if (Math.abs(video.currentTime - data.currentTime) > 2) video.currentTime = data.currentTime;
     }
 
-    video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
-    video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
-
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            // تحديث العرض ليظهر أزرار الحذف للآدمن
+            tapesRef.once('value', () => {}); 
             setInterval(() => {
                 if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
             }, 1000); 
