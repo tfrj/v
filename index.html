@@ -101,7 +101,7 @@
         .power-btn.active .power-icon { fill: var(--power-green); }
 
         .eject-icon { width: 18px; height: 18px; fill: #666; }
-        .eject-btn:hover { border-color: var(--eject-yellow); }
+        .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
         .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
 
         .control-panel { 
@@ -195,7 +195,7 @@
                     <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
                 </svg>
             </div>
-            <div class="eject-btn" id="ejectBtn" onclick="publicEject()" title="EJECT TAPE">
+            <div class="eject-btn" id="publicEjectBtn" onclick="publicEject()">
                 <svg class="eject-icon" viewBox="0 0 24 24">
                     <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
                 </svg>
@@ -257,13 +257,18 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة الإخراج للمشاهدين
+    // وظيفة الإخراج للمشاهدين (محسنة)
     function publicEject() {
         if(!isPoweredOn) {
             alert("شغل التلفزيون أولاً!");
             return;
         }
-        // مسح بيانات المزامنة يحول الجميع لوضع التشويش فوراً
+        // إيقاف وتشويش فوري محلياً
+        video.pause();
+        video.style.display = 'none';
+        toggleStatic(true);
+        
+        // إرسال الإشارة للجميع عبر Firebase
         syncRef.set(null);
     }
 
@@ -408,7 +413,7 @@
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
+    function clearDB() { if (confirm("ADMIN RESET?")) syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
 </script>
 </body>
