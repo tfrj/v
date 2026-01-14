@@ -17,16 +17,25 @@
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
 
-        /* الشاشة */
         .tv-unit { background: var(--frame); padding: 15px; border-radius: 8px; border: 3px solid #2a2a2a; box-shadow: 0 10px 40px rgba(0,0,0,1); }
         .screen-border { background: #000; padding: 5px; border-radius: 4px; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid #111; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
         .crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%); background-size: 100% 3px; pointer-events: none; z-index: 3; opacity: 0.3; }
         #no-signal { position: absolute; color: #333; font-size: 14px; text-align: center; z-index: 1; font-weight: bold; letter-spacing: 2px; }
 
-        /* المشغل */
         .vhs-deck { background: #111; border-radius: 4px; padding: 15px; border-bottom: 5px solid #000; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .display-screen { background: var(--bg-inner); padding: 10px 15px; border-radius: 2px; font-size: 11px; display: flex; justify-content: space-between; border: 1px solid #222; margin-bottom: 12px; }
+        
+        /* تعديل توزيع شاشة العرض لتكون الحالة في اليسار */
+        .display-screen { 
+            background: var(--bg-inner); 
+            padding: 10px 15px; 
+            border-radius: 2px; 
+            font-size: 11px; 
+            display: flex; 
+            justify-content: flex-start; /* دفع العناصر لليسار */
+            border: 1px solid #222; 
+            margin-bottom: 12px; 
+        }
 
         #status { color: var(--led-red); text-shadow: 0 0 5px var(--led-red); cursor: pointer; }
         #status.online { color: var(--led-green); text-shadow: 0 0 5px var(--led-green); }
@@ -34,7 +43,6 @@
         .slot { background: #000; border: 1px solid #222; height: 45px; display: none; align-items: center; padding: 0 10px; margin-bottom: 12px; }
         input { width: 100%; background: transparent; border: none; color: var(--led-green); outline: none; font-size: 13px; font-family: inherit; text-align: center; }
 
-        /* تحكم الأدمن */
         .admin-controls { display: none; flex-direction: column; gap: 10px; padding: 10px; background: #0c0c0c; border: 1px solid #1a1a1a; }
         .admin-info { color: #666; font-size: 10px; display: flex; justify-content: space-between; padding-bottom: 5px; border-bottom: 1px solid #1a1a1a; }
         .btn-group { display: flex; gap: 8px; }
@@ -56,7 +64,7 @@
 
     <div class="vhs-deck">
         <div class="display-screen">
-            <span id="status" onclick="toggleSlot()">STATUS: STANDBY</span>
+            <span id="status" onclick="toggleSlot()">STATUS: OFFLINE</span>
         </div>
 
         <div class="slot" id="vhsSlot">
@@ -159,7 +167,8 @@
         if (!data || !data.url) {
             video.style.display = 'none';
             video.pause();
-            statusBadge.innerText = isAuthorized ? "STATUS: OPERATOR" : "STATUS: STANDBY";
+            // تعديل: الرجوع لكلمة أوفلاين عند عدم وجود رابط
+            statusBadge.innerText = isAuthorized ? "STATUS: OPERATOR" : "STATUS: OFFLINE";
             statusBadge.classList.remove('online');
             return;
         }
