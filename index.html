@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync High-Precision</title>
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -256,31 +256,36 @@
     }
 
     function handleSyncUpdate(data) {
-        if (!isPoweredOn || !data || !data.url) {
-            if (isPoweredOn && (!data || !data.url)) {
-                video.style.display = 'none'; video.pause(); toggleStatic(true);
-            }
+        // إذا كان التلفاز مطفأ، لا نفعل شيء أبداً
+        if (!isPoweredOn) return;
+
+        // إذا لم تكن هناك بيانات أو الرابط فارغ (حالة EJECT)
+        if (!data || !data.url) {
+            video.style.display = 'none'; 
+            video.pause(); 
+            video.src = ""; // تفريغ المصدر
+            toggleStatic(true); // تشغيل الوشوشة فوراً
             return;
         }
 
-        video.style.display = 'block'; toggleStatic(false);
+        // إذا كان هناك رابط فيديو
+        video.style.display = 'block'; 
+        toggleStatic(false); // إيقاف الوشوشة
+        
         if (!video.src.includes(data.url)) loadVideo(data.url);
         
-        // مزامنة حالة التشغيل
         if (data.isPlaying) {
             if (video.paused) video.play().catch(()=>{});
         } else {
             if (!video.paused) video.pause();
         }
 
-        // مزامنة الوقت بدقة عالية (فرق ثانيتين فقط)
         const timeDiff = Math.abs(video.currentTime - data.currentTime);
         if (timeDiff > 2) {
             video.currentTime = data.currentTime;
         }
     }
 
-    // تحديثات الأدمن
     video.onplay = () => { if (isAdmin) syncRef.update({ isPlaying: true }); };
     video.onpause = () => { if (isAdmin) syncRef.update({ isPlaying: false }); };
 
@@ -289,14 +294,9 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
-            // تحديث الوقت كل ثانية واحدة لمزامنة دقيقة جداً
             setInterval(() => {
                 if (!video.paused && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() 
-                    });
+                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
                 }
             }, 1000); 
         }
