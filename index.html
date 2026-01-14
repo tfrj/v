@@ -17,6 +17,7 @@
             --pure-white: #ffffff;
             --power-red: #ff4b2b;
             --power-green: #2ecc71;
+            --eject-yellow: #f1c40f;
         }
         
         body { 
@@ -74,10 +75,11 @@
         .tv-controls {
             display: flex;
             justify-content: center;
+            gap: 20px;
             padding: 10px 0 5px 0;
         }
         
-        .power-btn {
+        .power-btn, .eject-btn {
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -95,15 +97,12 @@
             box-shadow: 0 0 15px var(--power-green);
         }
         
-        .power-icon {
-            width: 15px;
-            height: 15px;
-            fill: var(--power-red);
-        }
-        
-        .power-btn.active .power-icon {
-            fill: var(--power-green);
-        }
+        .power-icon { width: 15px; height: 15px; fill: var(--power-red); }
+        .power-btn.active .power-icon { fill: var(--power-green); }
+
+        .eject-icon { width: 18px; height: 18px; fill: #666; }
+        .eject-btn:hover { border-color: var(--eject-yellow); }
+        .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
 
         .control-panel { 
             background: var(--target-navy); 
@@ -174,7 +173,7 @@
             width: 18px;
             height: 18px;
             font-size: 10px;
-            display: none; /* يظهر للآدمن فقط */
+            display: none;
             align-items: center;
             justify-content: center;
         }
@@ -194,6 +193,11 @@
             <div class="power-btn" id="powerBtn" onclick="togglePower()">
                 <svg class="power-icon" viewBox="0 0 24 24">
                     <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
+                </svg>
+            </div>
+            <div class="eject-btn" id="ejectBtn" onclick="publicEject()" title="EJECT TAPE">
+                <svg class="eject-icon" viewBox="0 0 24 24">
+                    <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
                 </svg>
             </div>
         </div>
@@ -218,7 +222,7 @@
             </div>
 
             <div class="btn-group">
-                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT TV</button>
+                <button style="color: #ff6b6b;" onclick="clearDB()">ADMIN RESET</button>
                 <button onclick="adminLogout()">LOGOUT</button>
             </div>
         </div>
@@ -253,31 +257,30 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // وظيفة إضافة شريط جديد (غير محدود)
+    // وظيفة الإخراج للمشاهدين
+    function publicEject() {
+        if(!isPoweredOn) {
+            alert("شغل التلفزيون أولاً!");
+            return;
+        }
+        // مسح بيانات المزامنة يحول الجميع لوضع التشويش فوراً
+        syncRef.set(null);
+    }
+
     function addNewTape() {
         const name = document.getElementById('newTapeName').value || "شريط جديد";
         const url = document.getElementById('newTapeUrl').value;
-        
         if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        
-        tapesRef.push({
-            name: name,
-            url: url,
-            timestamp: Date.now()
-        }).then(() => {
+        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
         });
     }
 
-    // حذف شريط (للآدمن فقط)
     function deleteTape(key) {
-        if(confirm("حذف هذا الشريط نهائياً؟")) {
-            tapesRef.child(key).remove();
-        }
+        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
 
-    // جلب وعرض الأشرطة بشكل ديناميكي
     tapesRef.on('value', (snap) => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
@@ -288,10 +291,7 @@
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `
-                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>
-                ${tape.name}
-            `;
+            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">X</div>${tape.name}`;
             el.onclick = () => {
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
                 syncRef.set({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
@@ -300,7 +300,6 @@
         });
     });
 
-    // --- بقية وظائف كودك الأصلي ---
     function togglePower() {
         isPoweredOn = !isPoweredOn;
         if (isPoweredOn) {
@@ -379,7 +378,6 @@
             isAdmin = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            // تحديث العرض ليظهر أزرار الحذف للآدمن
             tapesRef.once('value', () => {}); 
             setInterval(() => {
                 if (!video.paused && isAdmin) syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() });
