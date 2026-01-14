@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Fullscreen Sync</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -12,93 +12,124 @@
 
     <style>
         :root { 
-            --target-navy: #151b4e; 
-            --dark-navy: #0d1131;   
+            --navy: #151b4e; 
             --pure-white: #ffffff;
         }
         
-        body { 
-            background-color: var(--target-navy); 
-            font-family: 'Courier New', monospace; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            margin: 0; 
-            padding: 20px; 
-            color: var(--pure-white);
-            min-height: 100vh;
-            background: linear-gradient(135deg, var(--target-navy) 0%, var(--dark-navy) 100%);
-            overflow-x: hidden;
-        }
-        
-        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
-
-        .tv-unit { 
-            background: var(--target-navy); 
-            padding: 8px; 
-            border-radius: 4px; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            cursor: pointer; /* ليشعر المستخدم أنه يمكنه الضغط لتفعيل الصوت */
+        body, html { 
+            margin: 0; padding: 0; 
+            width: 100%; height: 100%; 
+            background-color: #000; 
+            font-family: 'Courier New', monospace;
+            overflow: hidden; /* لمنع التمرير */
         }
 
-        .screen-border { 
-            background: #000; 
-            aspect-ratio: 16 / 9; 
-            position: relative; 
-            overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+        /* حاوية الشاشة الكاملة */
+        .main-screen {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
         }
 
+        /* التشويش البرمجي */
         #noise-canvas {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
-            display: block;
         }
 
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-
-        .control-panel { 
-            background: var(--target-navy); 
-            border: 1px solid rgba(255,255,255,0.1); 
-            border-radius: 4px; 
-            padding: 20px; 
+        video { 
+            width: 100%; height: 100%; 
+            object-fit: cover; /* لملء كامل الشاشة */
+            z-index: 2; 
+            display: none; 
         }
+
+        /* واجهة التحكم العائمة داخل الشاشة */
+        .overlay-ui {
+            position: absolute;
+            z-index: 10;
+            width: 100%;
+            max-width: 320px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .input-box {
+            width: 100%;
+            background: rgba(21, 27, 78, 0.8); /* كحلي شفاف */
+            border: 1px solid var(--pure-white);
+            color: var(--pure-white);
+            padding: 15px;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+            box-sizing: border-box;
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .input-box::placeholder { color: var(--pure-white); opacity: 0.7; }
+
+        /* لوحة المشرف بعد تسجيل الدخول */
+        #adminSection {
+            display: none;
+            background: rgba(21, 27, 78, 0.9);
+            padding: 15px;
+            border: 1px solid var(--pure-white);
+        }
+
+        .admin-controls { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
         
-        input { 
-            width: 100%; 
-            background: var(--dark-navy); 
-            border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); 
-            padding: 12px; 
-            outline: none; 
-            font-family: inherit; 
-            font-size: 13px; 
-            box-sizing: border-box; 
-            text-align: left; 
-            direction: ltr;   
-        }
-        input::placeholder { color: var(--pure-white); opacity: 0.8; }
-
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        button { 
-            flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; 
+        button {
+            background: transparent;
+            border: 1px solid var(--pure-white);
+            color: var(--pure-white);
+            padding: 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 11px;
         }
 
-        #authSection { display: block; }
-        #adminSection { display: none; }
+        button:hover { background: var(--pure-white); color: var(--navy); }
+
+        #count-tag {
+            position: absolute;
+            top: 20px; right: 20px;
+            font-size: 12px;
+            color: var(--pure-white);
+            z-index: 11;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+        }
     </style>
 </head>
-<body onclick="initAudio()"> <div class="container">
-    <div class="tv-unit" title="Click to unmute static">
-        <div class="screen-border">
-            <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline muted></video>
+<body onclick="initAudio()">
+
+    <div class="main-screen">
+        <div id="count-tag">LIVE USERS: <span id="count">0</span></div>
+
+        <canvas id="noise-canvas"></canvas>
+
+        <video id="video" playsinline muted></video>
+
+        <div class="overlay-ui">
+            <div id="authSection">
+                <input type="password" id="adminPass" class="input-box" placeholder="ENTER ACCESS CODE">
+            </div>
+
+            <div id="adminSection">
+                <input type="text" id="videoUrl" class="input-box" placeholder="PASTE LINK TO SYNC">
+                <div class="admin-controls">
+                    <button style="color: #ff6b6b;" onclick="clearDB()">EJECT SYSTEM</button>
+                    <button onclick="adminLogout()">LOGOUT</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -106,38 +137,24 @@
         <source src="https://www.soundjay.com/tv-static-05.mp3" type="audio/mpeg">
     </audio>
 
-    <div class="control-panel">
-        <div id="authSection">
-            <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
-        </div>
-        <div id="adminSection">
-            <input type="text" id="videoUrl" placeholder="PASTE SOURCE URL">
-            <div class="btn-group">
-                <button style="color: #ff6b6b;" onclick="clearDB()">EJECT</button>
-                <button onclick="adminLogout()">LOGOUT</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
+    // --- إعدادات الفيديو والتشويش ---
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
     const staticAudio = document.getElementById('static-audio');
     let noiseID;
     let audioInitialized = false;
 
-    // تفعيل الصوت عند أول ضغطة للمستخدم
     function initAudio() {
         if (!audioInitialized) {
             staticAudio.play().then(() => {
                 if (canvas.style.display === 'none') staticAudio.pause();
                 audioInitialized = true;
-            }).catch(e => console.log("Audio waiting for user interaction"));
+            }).catch(() => {});
         }
     }
 
-    function createNoise() {
+    function loopNoise() {
         canvas.width = 200; canvas.height = 150;
         const idata = ctx.createImageData(canvas.width, canvas.height);
         const buffer32 = new Uint32Array(idata.data.buffer);
@@ -145,10 +162,6 @@
             buffer32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
         }
         ctx.putImageData(idata, 0, 0);
-    }
-
-    function loopNoise() {
-        createNoise();
         noiseID = requestAnimationFrame(loopNoise);
     }
 
@@ -165,7 +178,7 @@
         }
     }
 
-    // --- كود Firebase الأصلي (بدون تغيير) ---
+    // --- كود Firebase الأصلي (بدون تغيير في المنطق) ---
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -181,8 +194,6 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
     const video = document.getElementById('video');
-    const adminPass = document.getElementById('adminPass');
-    const urlInput = document.getElementById('videoUrl');
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
@@ -191,15 +202,15 @@
         }
     });
 
-    adminPass.addEventListener('input', () => {
-        if (adminPass.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", adminPass.value).catch(() => {});
+    document.getElementById('adminPass').addEventListener('input', (e) => {
+        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(() => {});
     });
 
-    urlInput.addEventListener('input', () => {
-        const val = urlInput.value.trim();
+    document.getElementById('videoUrl').addEventListener('input', (e) => {
+        const val = e.target.value.trim();
         if (val.startsWith('http')) {
             syncRef.set({ url: val, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-            urlInput.value = "";
+            e.target.value = "";
         }
     });
 
@@ -217,14 +228,15 @@
     });
 
     function loadVideo(url) {
-        let hls = new Hls(); hls.destroy();
+        let hls = new Hls();
         if (url.includes('.m3u8')) {
-            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+            hls.loadSource(url); hls.attachMedia(video);
         } else { video.src = url; }
         video.play().catch(() => {});
     }
 
-    function clearDB() { if (confirm("EJECT?")) syncRef.set(null); }
+    db.ref('viewers').on('value', s => document.getElementById('count').innerText = s.numChildren());
+    function clearDB() { if (confirm("ERASE ALL CONTENT?")) syncRef.set(null); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
 </script>
 </body>
