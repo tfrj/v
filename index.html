@@ -146,6 +146,11 @@
             padding: 5px;
             border-radius: 3px;
             align-items: center;
+            transition: 0.3s;
+        }
+        .vhs-row.playing {
+            border-right: 4px solid var(--power-green);
+            background: rgba(46, 204, 113, 0.1);
         }
         .vhs-input {
             flex: 2;
@@ -173,6 +178,11 @@
             cursor: pointer;
             text-align: center;
             transition: 0.3s;
+        }
+        .viewer-tape.active-tape {
+            border-left-color: var(--power-green);
+            color: var(--power-green);
+            background: #000;
         }
         .viewer-tape:hover { background: #333; }
     </style>
@@ -232,6 +242,7 @@
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
+    let currentVideoUrl = ""; // لتتبع الفيديو الشغال حالياً
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -312,17 +323,33 @@
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
         if (!data || !data.url) {
+            currentVideoUrl = ""; // لا يوجد فيديو شغال
             video.style.display = 'none'; video.pause(); toggleStatic(true);
+            updateTapeUI(); // تحديث ألوان الأشرطة
             return;
         }
+        currentVideoUrl = data.url;
         video.style.display = 'block'; toggleStatic(false); 
         if (!video.src.includes(data.url)) loadVideo(data.url);
         if (data.isPlaying) { if (video.paused) video.play().catch(()=>{}); } 
         else { if (!video.paused) video.pause(); }
         if (Math.abs(video.currentTime - data.currentTime) > 2) { video.currentTime = data.currentTime; }
+        updateTapeUI(); // تحديث ألوان الأشرطة
     }
 
-    // عرض الأشرطة للجميع (مشاهدين وأدمن)
+    // تحديث ألوان الأشرطة بناءً على الفيديو الشغال
+    function updateTapeUI() {
+        const tapes = document.querySelectorAll('.vhs-row, .viewer-tape');
+        tapes.forEach(t => {
+            const url = t.getAttribute('data-url');
+            if (url && url === currentVideoUrl) {
+                t.classList.add('playing', 'active-tape');
+            } else {
+                t.classList.remove('playing', 'active-tape');
+            }
+        });
+    }
+
     collectionRef.on('value', (snap) => {
         const list = document.getElementById('tapesList');
         list.innerHTML = '';
@@ -330,36 +357,44 @@
         if (tapes) {
             Object.entries(tapes).forEach(([id, tape]) => {
                 const row = document.createElement('div');
+                row.setAttribute('data-url', tape.url);
                 if (isAdmin) {
                     row.className = 'vhs-row';
                     row.innerHTML = `
-                        <input type="text" class="vhs-input" value="${tape.url}" readonly>
-                        <button class="vhs-btn" onclick="playTape('${tape.url}')">PLAY</button>
+                        <input type="text" class="vhs-input" value="${tape.url}" readonly onclick="playTapeToggle('${tape.url}')">
+                        <button class="vhs-btn" onclick="playTapeToggle('${tape.url}')">PLAY</button>
                         <button class="vhs-btn" style="background:#444; flex:0.2;" onclick="deleteTape('${id}')">X</button>
                     `;
                 } else {
                     row.className = 'viewer-tape';
                     row.innerHTML = `📼 VHS TAPE: ${tape.url.substring(0, 20)}...`;
-                    row.onclick = () => playTape(tape.url);
+                    row.onclick = () => playTapeToggle(tape.url);
                 }
                 list.appendChild(row);
             });
+            updateTapeUI();
         }
     });
+
+    // دالة التشغيل أو الإيقاف (الحركة الجديدة)
+    function playTapeToggle(url) {
+        if (!isPoweredOn) { alert("PLEASE TURN ON TV FIRST"); return; }
+        
+        // إذا كان الشريط اللي ضغطته هو نفسه اللي شغال حالياً -> افصله (Eject)
+        if (currentVideoUrl === url) {
+            syncRef.set(null); // يرجع التشويش
+        } else {
+            // إذا كان مختلف أو مافي شي شغال -> شغله
+            syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
+        }
+    }
 
     function addNewTape() {
         const input = document.getElementById('newTapeInput');
         const url = input.value.trim();
         if (url.startsWith('http')) {
-            collectionRef.push({ url: url })
-            .then(() => { input.value = ''; })
-            .catch((err) => alert("PERMISSION ERROR: " + err.message));
+            collectionRef.push({ url: url }).then(() => { input.value = ''; });
         }
-    }
-
-    function playTape(url) {
-        if (!isPoweredOn) { alert("PLEASE TURN ON TV FIRST"); return; }
-        syncRef.set({ url: url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
     }
 
     function deleteTape(id) {
