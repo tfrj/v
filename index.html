@@ -253,7 +253,7 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // تصفير الفيديو والتشويش عند النهاية للآدمن
+    // وظيفة التنظيف عند النهاية
     video.onended = () => {
         if (isAdmin) {
             syncRef.set(null); 
@@ -323,6 +323,7 @@
 
     function startStaticSound() {
         if (!audioCtx || noiseNode || !isPoweredOn) return;
+        stopStaticSound();
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -350,7 +351,7 @@
         if (show && isPoweredOn) {
             canvas.style.display = 'block';
             if (!noiseID) loopNoise();
-            stopStaticSound(); startStaticSound();
+            startStaticSound();
         } else {
             canvas.style.display = 'none';
             cancelAnimationFrame(noiseID); noiseID = null;
@@ -361,12 +362,15 @@
     function handleSyncUpdate(data) {
         if (!isPoweredOn) return;
 
-        // إصلاح التعليق عند النهاية:
+        // --- إصلاح مشكلة التعليق النهائي ---
         if (!data || !data.url) {
-            video.pause();
-            video.src = ""; // حذف المصدر لمنع الصورة المعلقة
-            video.load(); 
+            if (!video.paused || video.src !== "") {
+                video.pause();
+                video.removeAttribute('src'); // حذف المصدر تماماً
+                video.load();
+            }
             video.style.display = 'none';
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
             toggleStatic(true);
             return;
         }
@@ -374,7 +378,7 @@
         video.style.display = 'block'; 
         toggleStatic(false); 
         
-        if (!video.src.includes(data.url)) {
+        if (!video.src || !video.src.includes(data.url)) {
             loadVideo(data.url);
             video.currentTime = data.currentTime;
         }
@@ -382,11 +386,13 @@
         if (data.isPlaying) {
             const timeDiff = (Date.now() - data.lastUpdated) / 1000;
             const targetTime = data.currentTime + (timeDiff > 0 ? timeDiff : 0);
-            if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+            if (Math.abs(video.currentTime - targetTime) > 2.5) {
+                video.currentTime = targetTime;
+            }
             video.play().catch(()=>{});
         } else {
             video.pause();
-            video.currentTime = data.currentTime;
+            if (Math.abs(video.currentTime - data.currentTime) > 1) video.currentTime = data.currentTime;
         }
     }
 
