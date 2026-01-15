@@ -284,6 +284,7 @@
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
+    let userHasInteracted = false; // متغير جديد لمنع التوقف عند الدخول
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -301,7 +302,12 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
+    // رصد أي تفاعل للمستخدم مع الصفحة
+    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
+    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
+
     function handlePowerClick() {
+        userHasInteracted = true;
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
             return;
@@ -328,6 +334,7 @@
     }
 
     function publicEject() {
+        userHasInteracted = true;
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         syncRef.set({ tvPower: true, isPlaying: false, url: null });
     }
@@ -361,8 +368,8 @@
                 <div class="tape-label">${tape.name}</div>
             `;
             el.onclick = () => {
+                userHasInteracted = true;
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                // تفعيل الصوت والتشغيل برمجياً قبل إرسال البيانات للتغلب على قيود المتصفح
                 video.play().catch(() => {}); 
                 syncRef.update({ 
                     url: tape.url, 
@@ -418,14 +425,15 @@
         }
     }
 
+    // لا يرسل حالة الإيقاف/التشغيل إلا إذا كان هناك تفاعل حقيقي من المستخدم
     video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn) {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
     };
 
     video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn) {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             syncRef.update({ isPlaying: true, currentTime: video.currentTime });
         }
     };
@@ -454,11 +462,9 @@
             loadVideo(data.url);
         }
 
-        // إجبار المتصفح على بدء التشغيل إذا كانت القيمة قادمة من السيرفر كـ True
         if (data.isPlaying) { 
             video.play().catch(error => {
-                console.log("Autoplay blocked, waiting for user interaction");
-                // إذا تم الحظر، نجرب كتم الصوت كحل أخير للتشغيل التلقائي
+                // محاولة التشغيل الصامت إذا كان التفاعل لم يحدث بعد
                 video.muted = true;
                 video.play();
             }); 
@@ -469,12 +475,13 @@
         const timeDiff = Math.abs(video.currentTime - data.currentTime);
         if (timeDiff > 3) video.currentTime = data.currentTime;
         
-        setTimeout(() => { isRemoteUpdate = false; }, 150);
+        setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
+            userHasInteracted = true; // الأدمن دائماً يعتبر متفاعل
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             
