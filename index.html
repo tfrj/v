@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - Global Movie Search</title>
+    <title>VHS Sync Control - IPTV Support</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -18,7 +18,7 @@
             --power-red: #ff4b2b;
             --power-green: #2ecc71;
             --eject-yellow: #f1c40f;
-            --search-blue: #3498db;
+            --iptv-blue: #3498db;
         }
         
         body { 
@@ -76,11 +76,11 @@
         .tv-controls {
             display: flex;
             justify-content: center;
-            gap: 15px;
+            gap: 20px;
             padding: 10px 0 5px 0;
         }
         
-        .power-btn, .eject-btn, .random-btn {
+        .power-btn, .eject-btn {
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -104,11 +104,6 @@
         .eject-icon { width: 18px; height: 18px; fill: #666; }
         .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
         .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
-
-        /* ستايل زر البحث العشوائي */
-        .random-icon { width: 18px; height: 18px; fill: #666; }
-        .random-btn:hover { border-color: var(--search-blue); box-shadow: 0 0 10px var(--search-blue); }
-        .random-btn:hover .random-icon { fill: var(--search-blue); }
 
         .control-panel { 
             background: var(--target-navy); 
@@ -238,18 +233,11 @@
         </div>
         
         <div class="tv-controls">
-            <div class="random-btn" id="randomBtn" onclick="playGlobalRandom()" title="بحث عشوائي في الإنترنت">
-                <svg class="random-icon" viewBox="0 0 24 24">
-                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                </svg>
-            </div>
-
             <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
                 <svg class="power-icon" viewBox="0 0 24 24">
                     <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
                 </svg>
             </div>
-
             <div class="eject-btn" id="publicEjectBtn" onclick="publicEject()">
                 <svg class="eject-icon" viewBox="0 0 24 24">
                     <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
@@ -267,12 +255,20 @@
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
+            <div class="admin-tape-controls" style="margin-top: 15px;">
+                <p style="font-size: 10px; color: var(--iptv-blue); font-weight: bold;">تحميل قائمة IPTV (M3U):</p>
+                <input type="text" id="iptvUrl" placeholder="ضع رابط ملف M3U هنا" style="font-size: 11px; padding: 8px; border-color: var(--iptv-blue);">
+                <button onclick="loadIptvFromUrl()" style="padding: 8px; font-size: 10px; background: var(--iptv-blue); margin-top: 5px;">تحديث الرف من الرابط</button>
+            </div>
+
+            <hr style="opacity: 0.1; margin: 15px 0;">
+
             <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
+                <p style="font-size: 10px; color: #aaa;">إضافة شريط فردي:</p>
                 <div style="display: flex; gap: 5px; flex-direction: column;">
                     <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
                     <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
+                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة للرف</button>
                 </div>
             </div>
 
@@ -283,7 +279,7 @@
         </div>
     </div>
 
-    <div class="vhs-library-title">اختر شريطاً للتشغيل:</div>
+    <div class="vhs-library-title">قنوات الـ IPTV والأشرطة:</div>
     <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
@@ -299,7 +295,6 @@
     let globalAdminPresent = false;
     let userHasInteracted = false;
 
-    // إعدادات الفايربيس (كما هي في كودك)
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -319,33 +314,35 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // دالة جلب أفلام عشوائية من الإنترنت (IPTV مفتوح)
-    async function playGlobalRandom() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، هو فقط من يبحث حالياً");
-            return;
-        }
-        if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-
+    // --- ميزة IPTV الجديدة ---
+    async function loadIptvFromUrl() {
+        const url = document.getElementById('iptvUrl').value.trim();
+        if(!url) return alert("يرجى وضع رابط M3U");
+        
         try {
-            // جلب قائمة قنوات/أفلام عشوائية عربية وعالمية
-            const res = await fetch('https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ar.m3u');
-            const text = await res.text();
-            const lines = text.split('\n').filter(l => l.startsWith('http') && l.includes('.m3u8'));
-            const randomUrl = lines[Math.floor(Math.random() * lines.length)];
-            
-            syncRef.update({ 
-                url: randomUrl, 
-                currentTime: 0, 
-                isPlaying: true, 
-                adminPresent: isAdmin,
-                lastUpdated: Date.now() 
-            });
-        } catch(e) {
-            alert("فشل البحث في الإنترنت، حاول ثانية");
+            const response = await fetch(url);
+            const data = await response.text();
+            const lines = data.split('\n');
+            let count = 0;
+
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith('#EXTINF:')) {
+                    const namePart = lines[i].split(',')[1] || "قناة IPTV";
+                    const videoUrl = lines[i+1]?.trim();
+                    if(videoUrl && videoUrl.startsWith('http')) {
+                        // إضافة القناة لقاعدة البيانات كشريط
+                        tapesRef.push({ name: namePart.trim(), url: videoUrl, isIptv: true });
+                        count++;
+                    }
+                }
+            }
+            alert(`تم استيراد ${count} قناة بنجاح!`);
+            document.getElementById('iptvUrl').value = "";
+        } catch (e) {
+            alert("خطأ: تأكد من أن الرابط مباشر ويدعم CORS");
         }
     }
+    // -----------------------
 
     function handlePowerClick() {
         userHasInteracted = true;
@@ -408,6 +405,9 @@
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
+            // تمييز قنوات IPTV بلون بسيط في الحاشية
+            if(tape.isIptv) el.style.borderRight = "5px solid #3498db";
+            
             el.innerHTML = `
                 <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
                 <div class="tape-label">${tape.name}</div>
@@ -549,6 +549,7 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            
             syncRef.update({ adminPresent: true });
 
             video.ontimeupdate = () => {
