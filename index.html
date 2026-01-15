@@ -251,7 +251,7 @@
         </div>
         
         <div id="adminSection">
-            <p style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
+            <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
@@ -334,8 +334,13 @@
 
     function publicEject() {
         userHasInteracted = true;
+        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
+        if (globalAdminPresent && !isAdmin) {
+            alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
+            return;
+        }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        syncRef.set({ tvPower: true, isPlaying: false, url: null });
+        syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
     function addNewTape() {
@@ -368,6 +373,11 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
+                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
+                if (globalAdminPresent && !isAdmin) {
+                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
+                    return;
+                }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
                 video.play().catch(() => {}); 
                 syncRef.update({ 
@@ -375,7 +385,7 @@
                     currentTime: 0, 
                     isPlaying: true, 
                     adminPresent: isAdmin,
-                    lastUpdated: Date.now() // توقيت البدء
+                    lastUpdated: Date.now() 
                 });
             };
             shelf.appendChild(el);
@@ -424,7 +434,6 @@
         }
     }
 
-    // مراقب نهاية الفيديو - لإيقافه عند الجميع
     video.onended = () => {
         if (!isRemoteUpdate && isPoweredOn) {
             syncRef.update({ isPlaying: false, currentTime: 0, url: null });
@@ -433,12 +442,16 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
+            if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
     };
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
+            if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
                 currentTime: video.currentTime,
@@ -471,7 +484,6 @@
             loadVideo(data.url);
         }
 
-        // حساب الوقت الصحيح بناءً على زمن البدء (التزامن الدقيق للانضمام المتأخر)
         let targetTime = data.currentTime;
         if (data.isPlaying && data.lastUpdated) {
             const elapsed = (Date.now() - data.lastUpdated) / 1000;
@@ -506,7 +518,6 @@
                 if (!video.paused && !isRemoteUpdate && isAdmin) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
-                        // تحديث نقطة المرجع للوقت لضمان تزامن المنضمين الجدد
                         lastUpdated: Date.now() - (video.currentTime * 1000),
                         adminPresent: true 
                     });
