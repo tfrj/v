@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - IPTV Master</title>
+    <title>VHS Sync Control - IPTV Integrated</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -221,12 +221,12 @@
             border: none;
         }
 
-        /* تنسيق خيارات IPTV الإضافية */
-        .iptv-options {
-            border: 1px dashed var(--iptv-blue);
+        /* تنسيق الأقسام الجديدة للأدمن */
+        .admin-section-box {
+            border: 1px solid rgba(255,255,255,0.1);
             padding: 10px;
-            margin-top: 10px;
-            border-radius: 4px;
+            margin-top: 15px;
+            background: rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -263,15 +263,17 @@
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
-            <div class="iptv-options">
-                <p style="font-size: 10px; color: var(--iptv-blue); font-weight: bold; margin: 0 0 5px 0;">تحميل قنوات IPTV:</p>
-                <input type="text" id="iptvUrl" placeholder="ضع رابط M3U هنا" style="font-size: 11px; padding: 8px;">
-                <button onclick="loadIptvFromUrl()" id="iptvBtn" style="padding: 8px; font-size: 10px; background: var(--iptv-blue); margin-top: 5px; color: white;">جلب من الرابط</button>
-                
-                <p style="font-size: 9px; text-align: center; margin: 5px 0; opacity: 0.6;">-- أو --</p>
-                
-                <input type="file" id="iptvFile" accept=".m3u,.txt" style="display: none;" onchange="loadIptvFromFile(this)">
-                <button onclick="document.getElementById('iptvFile').click()" style="padding: 8px; font-size: 10px; background: #555; color: white;">رفع ملف M3U من جهازك</button>
+            <div class="admin-section-box">
+                <p style="font-size: 10px; color: var(--power-green);">إضافة شريط يدوي:</p>
+                <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px; margin-bottom: 5px;">
+                <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px; margin-bottom: 5px;">
+                <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط</button>
+            </div>
+
+            <div class="admin-section-box" style="border-color: var(--iptv-blue);">
+                <p style="font-size: 10px; color: var(--iptv-blue);">استيراد قائمة IPTV (M3U):</p>
+                <input type="text" id="iptvUrl" placeholder="ضع رابط ملف M3U هنا" style="font-size: 11px; padding: 8px; margin-bottom: 5px;">
+                <button onclick="loadIptvFromUrl()" id="iptvBtn" style="padding: 8px; font-size: 10px; background: var(--iptv-blue); color: white;">جلب القنوات للرف</button>
             </div>
 
             <div class="btn-group">
@@ -281,7 +283,7 @@
         </div>
     </div>
 
-    <div class="vhs-library-title">قنوات الـ IPTV والأشرطة:</div>
+    <div class="vhs-library-title">اختر شريطاً للتشغيل:</div>
     <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
@@ -316,81 +318,62 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // --- وظيفة الجلب من الرابط (المحسنة جداً) ---
+    // --- الوظيفة الجديدة لجلب IPTV ---
     async function loadIptvFromUrl() {
         const btn = document.getElementById('iptvBtn');
         const originalUrl = document.getElementById('iptvUrl').value.trim();
         if(!originalUrl) return alert("يرجى وضع رابط M3U");
         
-        btn.innerText = "جاري الاتصال بالسيرفر...";
+        btn.innerText = "جاري الجلب...";
         btn.disabled = true;
 
-        // وسيط (Proxy) جديد ومختلف يدعم جلب البيانات كأنها متصفح حقيقي
-        const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(originalUrl)}`;
+        // استخدام بروكسي لتجاوز قيود المتصفح
+        const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(originalUrl);
         
         try {
             const response = await fetch(proxyUrl);
-            const data = await response.text();
-            parseAndUploadM3U(data);
-        } catch (e) {
-            alert("فشل الجلب من الرابط بسبب حماية السيرفر. يرجى تحميل ملف الميديا على جهازك واستخدام زر 'رفع ملف' بدلاً من ذلك.");
-        } finally {
-            btn.innerText = "جلب من الرابط";
-            btn.disabled = false;
-        }
-    }
+            const json = await response.json();
+            const data = json.contents; 
 
-    // --- وظيفة القراءة من ملف (الحل المضمون) ---
-    function loadIptvFromFile(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            parseAndUploadM3U(e.target.result);
-        };
-        reader.readAsText(file);
-    }
+            if(!data || !data.includes('#EXTM3U')) {
+                throw new Error("تنسيق غير صحيح");
+            }
 
-    // --- محلل ملفات M3U المشترك ---
-    function parseAndUploadM3U(content) {
-        if(!content || !content.includes('#EXTM3U')) {
-            return alert("خطأ: هذا ليس ملف قنوات M3U صحيح.");
-        }
+            const lines = data.split('\n');
+            let count = 0;
 
-        const lines = content.split('\n');
-        let count = 0;
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const namePart = line.substring(line.lastIndexOf(',') + 1).trim() || "قناة IPTV";
+                    
+                    let videoUrl = "";
+                    for (let j = i + 1; j < i + 10 && j < lines.length; j++) {
+                        let nextLine = lines[j].trim();
+                        if (nextLine.toLowerCase().startsWith('http')) {
+                            videoUrl = nextLine;
+                            break;
+                        }
+                    }
 
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i].trim();
-            if (line.startsWith('#EXTINF:')) {
-                const namePart = line.substring(line.lastIndexOf(',') + 1).trim() || "قناة IPTV";
-                
-                let videoUrl = "";
-                for (let j = i + 1; j < i + 15 && j < lines.length; j++) {
-                    let nextLine = lines[j].trim();
-                    if (nextLine.toLowerCase().startsWith('http')) {
-                        videoUrl = nextLine;
-                        break;
+                    if (videoUrl) {
+                        tapesRef.push({ 
+                            name: namePart, 
+                            url: videoUrl, 
+                            isIptv: true,
+                            timestamp: Date.now() 
+                        });
+                        count++;
                     }
                 }
-
-                if (videoUrl) {
-                    tapesRef.push({ 
-                        name: namePart, 
-                        url: videoUrl, 
-                        isIptv: true,
-                        timestamp: Date.now() 
-                    });
-                    count++;
-                }
             }
-        }
-
-        if(count > 0) {
-            alert(`نجاح! تم تحويل ${count} قناة إلى أشرطة VHS على الرف.`);
+            alert(`تم إضافة ${count} قناة للرف بنجاح!`);
             document.getElementById('iptvUrl').value = "";
-        } else {
-            alert("لم نجد روابط قنوات داخل هذا الملف. تأكد من جودتها.");
+        } catch (e) {
+            alert("فشل الجلب: تأكد من الرابط أو حاول مرة أخرى.");
+        } finally {
+            btn.innerText = "جلب القنوات للرف";
+            btn.disabled = false;
         }
     }
 
@@ -431,8 +414,18 @@
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
+    function addNewTape() {
+        const name = document.getElementById('newTapeName').value || "شريط يدوي";
+        const url = document.getElementById('newTapeUrl').value;
+        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
+        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
+            document.getElementById('newTapeName').value = "";
+            document.getElementById('newTapeUrl').value = "";
+        });
+    }
+
     function deleteTape(key) {
-        if(confirm("حذف هذا الشريط؟")) { tapesRef.child(key).remove(); }
+        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
     }
 
     tapesRef.on('value', (snap) => {
@@ -445,6 +438,7 @@
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
+            // تمييز قنوات IPTV بلون بسيط
             if(tape.isIptv) el.style.borderRight = "5px solid var(--iptv-blue)";
             
             el.innerHTML = `
@@ -454,7 +448,7 @@
             el.onclick = () => {
                 userHasInteracted = true;
                 if (globalAdminPresent && !isAdmin) {
-                    alert("الأدمن متصل حالياً");
+                    alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
@@ -513,32 +507,97 @@
         }
     }
 
+    video.onended = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
+        }
+    };
+
+    video.onpause = () => {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            if (globalAdminPresent && !isAdmin) return;
+            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
+        }
+    };
+
+    video.onplay = () => {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            if (globalAdminPresent && !isAdmin) return;
+            syncRef.update({ 
+                isPlaying: true, 
+                currentTime: video.currentTime,
+                lastUpdated: Date.now() - (video.currentTime * 1000) 
+            });
+        }
+    };
+
     function handleSyncUpdate(data) {
         if (!data) return;
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
+
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
+            applyPowerState(data.tvPower);
+        }
+
         globalAdminPresent = data.adminPresent || false;
+
         if (!isPoweredOn) return;
-        if (!data.url) { video.style.display = 'none'; video.pause(); toggleStatic(true); return; }
+
+        if (!data.url) {
+            video.style.display = 'none'; video.pause();
+            toggleStatic(true); return;
+        }
+        
         isRemoteUpdate = true;
         video.style.display = 'block'; 
         toggleStatic(false); 
-        if (!video.src.includes(data.url)) loadVideo(data.url);
+        
+        if (!video.src.includes(data.url)) {
+            loadVideo(data.url);
+        }
+
         let targetTime = data.currentTime;
         if (data.isPlaying && data.lastUpdated) {
             const elapsed = (Date.now() - data.lastUpdated) / 1000;
             targetTime = elapsed > 0 ? elapsed : data.currentTime;
         }
-        if (data.isPlaying) { video.play().catch(() => { video.muted = true; video.play(); }); } else { video.pause(); }
-        if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+
+        if (data.isPlaying) { 
+            video.play().catch(error => {
+                video.muted = true;
+                video.play();
+            }); 
+        } else { 
+            video.pause(); 
+        }
+
+        const timeDiff = Math.abs(video.currentTime - targetTime);
+        if (timeDiff > 2) video.currentTime = targetTime;
+        
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
+            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            
             syncRef.update({ adminPresent: true });
+
+            video.ontimeupdate = () => {
+                if (!video.paused && !isRemoteUpdate && isAdmin) {
+                    syncRef.update({ 
+                        currentTime: video.currentTime, 
+                        lastUpdated: Date.now() - (video.currentTime * 1000),
+                        adminPresent: true 
+                    });
+                }
+            };
+
+            window.addEventListener('beforeunload', () => {
+                syncRef.update({ adminPresent: false });
+            });
         }
     });
 
@@ -546,17 +605,37 @@
         if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
     });
 
+    document.getElementById('videoUrl').addEventListener('change', (e) => {
+        const val = e.target.value.trim();
+        if (val.startsWith('http')) {
+            syncRef.update({ 
+                url: val, 
+                currentTime: 0, 
+                isPlaying: true, 
+                adminPresent: isAdmin,
+                lastUpdated: Date.now() 
+            });
+            e.target.value = "";
+        }
+    });
+
+    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
+
     let hls;
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
-            else { video.src = url; }
+            if (Hls.isSupported()) { 
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
+            } else { video.src = url; }
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("ضبط المصنع؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
+    function adminLogout() { 
+        syncRef.update({ adminPresent: false });
+        auth.signOut().then(() => location.reload()); 
+    }
 </script>
 </body>
 </html>
