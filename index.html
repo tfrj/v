@@ -72,13 +72,14 @@
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
-        /* إضافة نمط الإطار لصفحة Cast */
+        /* تعديل إطار الـ Cast لضمان السماح بالاقتران */
         #cast-iframe {
             width: 100%;
             height: 100%;
             border: none;
             display: none;
             z-index: 5;
+            background: #000;
         }
 
         .tv-controls {
@@ -238,13 +239,13 @@
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
-            <iframe id="cast-iframe" src="https://cast2tv.app/" allow="autoplay; fullscreen"></iframe>
+            <iframe id="cast-iframe" src="https://cast2tv.app/" allow="autoplay; fullscreen; microphone; camera; display-capture" sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"></iframe>
         </div>
         
         <div class="tv-controls">
             <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
                 <svg class="power-icon" viewBox="0 0 24 24">
-                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
+                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99( 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
                 </svg>
             </div>
             <div class="eject-btn" id="publicEjectBtn" onclick="publicEject()">
@@ -274,7 +275,7 @@
             </div>
 
             <div class="btn-group">
-                <button style="background: #e67e22;" onclick="toggleCastMode()">TOGGLE CAST TV</button>
+                <button style="background: #f39c12; color: white;" onclick="toggleCastMode()">CONNECT CAST TV</button>
                 <button style="color: #ff6b6b;" onclick="clearDB()">ADMIN RESET</button>
                 <button onclick="adminLogout()">LOGOUT</button>
             </div>
@@ -289,7 +290,7 @@
     const canvas = document.getElementById('noise-canvas');
     const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
-    const castIframe = document.getElementById('cast-iframe'); // تعريف الإطار
+    const castIframe = document.getElementById('cast-iframe');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
     let noiseID, audioCtx, noiseNode, isAdmin = false;
@@ -317,12 +318,12 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // وظيفة الأدمن للتبديل لوضع Cast2TV للجميع
+    // تبديل وضع البث في Firebase
     function toggleCastMode() {
         if (!isAdmin) return;
         syncRef.once('value', (snap) => {
-            const current = snap.val()?.showCast || false;
-            syncRef.update({ showCast: !current, url: null, isPlaying: false });
+            const isCasting = snap.val()?.isCasting || false;
+            syncRef.update({ isCasting: !isCasting, url: null });
         });
     }
 
@@ -347,7 +348,7 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            castIframe.style.display = 'none'; // إخفاء عند الإغلاق
+            castIframe.style.display = 'none';
             video.pause();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
@@ -361,7 +362,7 @@
             return;
         }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        syncRef.set({ tvPower: true, isPlaying: false, url: null, showCast: false, adminPresent: globalAdminPresent });
+        syncRef.set({ tvPower: true, isPlaying: false, url: null, isCasting: false, adminPresent: globalAdminPresent });
     }
 
     function addNewTape() {
@@ -404,7 +405,7 @@
                     url: tape.url, 
                     currentTime: 0, 
                     isPlaying: true, 
-                    showCast: false, // العودة للوضع العادي عند اختيار شريط
+                    isCasting: false,
                     adminPresent: isAdmin,
                     lastUpdated: Date.now() 
                 });
@@ -490,8 +491,8 @@
 
         if (!isPoweredOn) return;
 
-        // منطق المزامنة لصفحة Cast2TV
-        if (data.showCast) {
+        // منطق المزامنة لصفحة البث
+        if (data.isCasting) {
             video.style.display = 'none';
             video.pause();
             castIframe.style.display = 'block';
@@ -571,7 +572,7 @@
                 url: val, 
                 currentTime: 0, 
                 isPlaying: true, 
-                showCast: false,
+                isCasting: false,
                 adminPresent: isAdmin,
                 lastUpdated: Date.now() 
             });
@@ -591,7 +592,7 @@
         } else { video.src = url; }
     }
 
-    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, showCast: false, adminPresent: isAdmin }); }
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, isCasting: false, adminPresent: isAdmin }); }
     function adminLogout() { 
         syncRef.update({ adminPresent: false });
         auth.signOut().then(() => location.reload()); 
