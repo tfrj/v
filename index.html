@@ -285,7 +285,6 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let hls; // تعريف متغير hls عالمياً
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -335,6 +334,7 @@
 
     function publicEject() {
         userHasInteracted = true;
+        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -373,6 +373,7 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
+                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
@@ -433,37 +434,6 @@
         }
     }
 
-    // --- الدالة المحدثة لمعالجة روابط MP4 و HLS ---
-    function loadVideo(url) {
-        if (hls) {
-            hls.destroy();
-            hls = null;
-        }
-
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); 
-                hls.loadSource(url); 
-                hls.attachMedia(video); 
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url; 
-            }
-        } else { 
-            // تشغيل روابط MP4 والمباشرة الأخرى
-            video.src = url; 
-        }
-
-        video.play().catch(error => {
-            console.log("التشغيل بانتظار التفاعل أو كتم الصوت");
-            video.muted = true;
-            video.play().catch(e => console.error("فشل التشغيل:", e));
-        });
-    }
-
     video.onended = () => {
         if (!isRemoteUpdate && isPoweredOn) {
             syncRef.update({ isPlaying: false, currentTime: 0, url: null });
@@ -472,6 +442,7 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -479,6 +450,7 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
@@ -508,8 +480,7 @@
         video.style.display = 'block'; 
         toggleStatic(false); 
         
-        // التحقق مما إذا كان الرابط قد تغير فعلياً لتجنب إعادة التحميل اللانهائي
-        if (video.src !== data.url && !video.src.includes(data.url)) {
+        if (!video.src.includes(data.url)) {
             loadVideo(data.url);
         }
 
@@ -578,6 +549,16 @@
     });
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
+
+    let hls;
+    function loadVideo(url) {
+        if (hls) hls.destroy();
+        if (url.includes('.m3u8')) {
+            if (Hls.isSupported()) { 
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
+            } else { video.src = url; }
+        } else { video.src = url; }
+    }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
     function adminLogout() { 
