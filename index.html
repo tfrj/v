@@ -72,8 +72,8 @@
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
         
-        /* إضافة طبقة اليوتيوب */
-        #youtube-player { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 3; display: none; pointer-events: none; }
+        /* طبقة اليوتيوب */
+        #youtube-layer { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 3; display: none; }
 
         .tv-controls {
             display: flex;
@@ -82,7 +82,7 @@
             padding: 10px 0 5px 0;
         }
         
-        .power-btn, .eject-btn, .yt-random-btn {
+        .power-btn, .eject-btn, .yt-btn {
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -107,8 +107,7 @@
         .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
         .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
 
-        /* تنسيق زر يوتيوب العشوائي */
-        .yt-random-btn:hover { border-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
+        .yt-btn:hover { border-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
 
         .control-panel { 
             background: var(--target-navy); 
@@ -235,7 +234,7 @@
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
-            <div id="youtube-player"></div>
+            <div id="youtube-layer"></div>
         </div>
         
         <div class="tv-controls">
@@ -249,10 +248,8 @@
                     <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
                 </svg>
             </div>
-            <div class="yt-random-btn" onclick="playRandomYoutube()" title="بحث عشوائي">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff0000">
-                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 4-8 4z"/>
-                </svg>
+            <div class="yt-btn" onclick="playRandomYoutube()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff0000"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 4-8 4z"/></svg>
             </div>
         </div>
     </div>
@@ -292,15 +289,15 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
+    const youtubeLayer = document.getElementById('youtube-layer');
+    
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
 
-    // إعدادات يوتيوب
     const YT_API_KEY = "AIzaSyApcJFw0ykpP16ao2D82f8cGECFapJu1k4";
-    const ytPlayerDiv = document.getElementById('youtube-player');
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -321,14 +318,12 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // دالة توليد بحث عشوائي حقيقي
+    // دالة توليد حروف عشوائية للبحث
     function generateRandomQuery() {
-        const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-        let result = "";
-        for (let i = 0; i < 3; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
+        const chars = "abcdefghijklmnopqrstuvwxyz";
+        return chars.charAt(Math.floor(Math.random() * chars.length)) + 
+               chars.charAt(Math.floor(Math.random() * chars.length)) + 
+               chars.charAt(Math.floor(Math.random() * chars.length));
     }
 
     async function playRandomYoutube() {
@@ -336,14 +331,14 @@
         if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل حالياً"); return; }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         
-        const randomTerm = generateRandomQuery();
+        const q = generateRandomQuery();
         try {
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q=${randomTerm}&type=video&key=${YT_API_KEY}`);
+            const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q=${q}&type=video&key=${YT_API_KEY}`);
             const data = await res.json();
             if(data.items && data.items.length > 0) {
-                const videoId = data.items[Math.floor(Math.random() * data.items.length)].id.videoId;
+                const vidId = data.items[Math.floor(Math.random() * data.items.length)].id.videoId;
                 syncRef.update({ 
-                    url: videoId, 
+                    url: vidId, 
                     isYoutube: true, 
                     isPlaying: true, 
                     lastUpdated: Date.now(),
@@ -374,7 +369,8 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            ytPlayerDiv.style.display = 'none';
+            youtubeLayer.style.display = 'none';
+            youtubeLayer.innerHTML = "";
             video.pause();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
@@ -514,61 +510,49 @@
         }
 
         globalAdminPresent = data.adminPresent || false;
-
         if (!isPoweredOn) return;
 
         if (!data.url) {
             video.style.display = 'none'; 
-            ytPlayerDiv.style.display = 'none';
+            youtubeLayer.style.display = 'none';
             video.pause();
-            toggleStatic(true); return;
+            toggleStatic(true); 
+            return;
         }
         
         toggleStatic(false); 
 
         if (data.isYoutube) {
-            video.style.display = 'none'; 
-            video.pause();
-            ytPlayerDiv.style.display = 'block';
+            video.style.display = 'none'; video.pause();
+            youtubeLayer.style.display = 'block';
             
-            // حساب زمن البداية للمزامنة
             let startAt = 0;
             if (data.lastUpdated) {
                 startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
             }
 
-            const embed = `https://www.youtube.com/embed/${data.url}?autoplay=1&controls=0&start=${startAt}&modestbranding=1&rel=0`;
-            if (!ytPlayerDiv.innerHTML.includes(data.url)) {
-                ytPlayerDiv.innerHTML = `<iframe width="100%" height="100%" src="${embed}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+            // استخدام الرابط الصحيح للمشغل مع تفعيل التشغيل التلقائي والصمت للمزامنة
+            const embedUrl = `https://www.youtube.com/embed/${data.url}?autoplay=1&mute=1&controls=0&start=${startAt}&rel=0&showinfo=0&modestbranding=1`;
+            
+            if (!youtubeLayer.innerHTML.includes(data.url)) {
+                youtubeLayer.innerHTML = `<iframe width="100%" height="100%" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
             }
         } else {
-            ytPlayerDiv.style.display = 'none';
-            ytPlayerDiv.innerHTML = "";
+            youtubeLayer.style.display = 'none'; youtubeLayer.innerHTML = "";
             video.style.display = 'block'; 
-            
             isRemoteUpdate = true;
-            if (!video.src.includes(data.url)) {
-                loadVideo(data.url);
-            }
+            if (!video.src.includes(data.url)) loadVideo(data.url);
 
             let targetTime = data.currentTime;
             if (data.isPlaying && data.lastUpdated) {
-                const elapsed = (Date.now() - data.lastUpdated) / 1000;
-                targetTime = elapsed > 0 ? elapsed : data.currentTime;
+                targetTime = (Date.now() - data.lastUpdated) / 1000;
             }
 
             if (data.isPlaying) { 
-                video.play().catch(error => {
-                    video.muted = true;
-                    video.play();
-                }); 
-            } else { 
-                video.pause(); 
-            }
+                video.play().catch(() => { video.muted = true; video.play(); }); 
+            } else { video.pause(); }
 
-            const timeDiff = Math.abs(video.currentTime - targetTime);
-            if (timeDiff > 2) video.currentTime = targetTime;
-            
+            if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
             setTimeout(() => { isRemoteUpdate = false; }, 200);
         }
     }
@@ -576,12 +560,9 @@
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
-            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
-
             video.ontimeupdate = () => {
                 if (!video.paused && !isRemoteUpdate && isAdmin) {
                     syncRef.update({ 
@@ -591,10 +572,7 @@
                     });
                 }
             };
-
-            window.addEventListener('beforeunload', () => {
-                syncRef.update({ adminPresent: false });
-            });
+            window.addEventListener('beforeunload', () => syncRef.update({ adminPresent: false }));
         }
     });
 
@@ -605,14 +583,7 @@
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
         if (val.startsWith('http')) {
-            syncRef.update({ 
-                url: val, 
-                isYoutube: false,
-                currentTime: 0, 
-                isPlaying: true, 
-                adminPresent: isAdmin,
-                lastUpdated: Date.now() 
-            });
+            syncRef.update({ url: val, isYoutube: false, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
             e.target.value = "";
         }
     });
@@ -623,17 +594,13 @@
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
+            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
+            else { video.src = url; }
         } else { video.src = url; }
     }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { 
-        syncRef.update({ adminPresent: false });
-        auth.signOut().then(() => location.reload()); 
-    }
+    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
 </script>
 </body>
 </html>
