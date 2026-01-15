@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync Control - Optimized</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -275,17 +275,7 @@
 </div>
 
 <script>
-    const canvas = document.getElementById('noise-canvas');
-    const ctx = canvas.getContext('2d');
-    const video = document.getElementById('video');
-    const overlay = document.getElementById('tap-overlay');
-    const powerBtn = document.getElementById('powerBtn');
-    let noiseID, audioCtx, noiseNode, isAdmin = false;
-    let isPoweredOn = false;
-    let isRemoteUpdate = false;
-    let globalAdminPresent = false;
-    let userHasInteracted = false;
-
+    // تكوين Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -302,8 +292,50 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
+    const canvas = document.getElementById('noise-canvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('tap-overlay');
+    const powerBtn = document.getElementById('powerBtn');
+    
+    let noiseID, audioCtx, noiseNode, isAdmin = false;
+    let isPoweredOn = false;
+    let isRemoteUpdate = false;
+    let globalAdminPresent = false;
+    let userHasInteracted = false;
+    let hls = null;
+
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
+
+    // دالة تحميل الفيديو المحدثة لإصلاح مشكلة سفاري وروابط البث
+    function loadVideo(url) {
+        if (!url) return;
+        
+        if (hls) {
+            hls.destroy();
+            hls = null;
+        }
+
+        // 1. دعم متصفح سفاري الأصلي لروابط HLS
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url;
+        } 
+        // 2. استخدام hls.js لبقية المتصفحات
+        else if (Hls.isSupported()) {
+            hls = new Hls({
+                // إعدادات لتمكين الروابط التي لا تنتهي بـ m3u8 صراحة
+                forceSyncM3U8: true,
+                xhrSetup: function(xhr, url) { xhr.withCredentials = false; }
+            });
+            hls.loadSource(url);
+            hls.attachMedia(video);
+        } 
+        // 3. الرجوع للمشغل العادي كخيار أخير
+        else {
+            video.src = url;
+        }
+    }
 
     function handlePowerClick() {
         userHasInteracted = true;
@@ -321,7 +353,10 @@
             powerBtn.classList.add('active');
             overlay.style.display = 'none';
             initAudio();
-            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
+            syncRef.once('value', (snap) => {
+                const data = snap.val();
+                if (data && data.url) handleSyncUpdate(data);
+            });
         } else {
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
@@ -334,7 +369,6 @@
 
     function publicEject() {
         userHasInteracted = true;
-        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -373,13 +407,11 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
-                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                video.play().catch(() => {}); 
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -442,7 +474,6 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -450,7 +481,6 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
@@ -480,7 +510,7 @@
         video.style.display = 'block'; 
         toggleStatic(false); 
         
-        if (!video.src.includes(data.url)) {
+        if (video.src !== data.url) {
             loadVideo(data.url);
         }
 
@@ -491,7 +521,7 @@
         }
 
         if (data.isPlaying) { 
-            video.play().catch(error => {
+            video.play().catch(() => {
                 video.muted = true;
                 video.play();
             }); 
@@ -500,9 +530,9 @@
         }
 
         const timeDiff = Math.abs(video.currentTime - targetTime);
-        if (timeDiff > 2) video.currentTime = targetTime;
+        if (timeDiff > 3) video.currentTime = targetTime;
         
-        setTimeout(() => { isRemoteUpdate = false; }, 200);
+        setTimeout(() => { isRemoteUpdate = false; }, 300);
     }
 
     auth.onAuthStateChanged(user => {
@@ -511,7 +541,6 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
 
             video.ontimeupdate = () => {
@@ -549,16 +578,6 @@
     });
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-
-    let hls;
-    function loadVideo(url) {
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { 
-                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
-            } else { video.src = url; }
-        } else { video.src = url; }
-    }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
     function adminLogout() { 
