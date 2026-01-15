@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - Optimized</title>
+    <title>VHS Sync Control - Safari Fix</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -35,161 +35,26 @@
         }
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
-
-        .tv-unit { 
-            background: var(--target-navy); 
-            padding: 8px; 
-            border-radius: 4px; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            position: relative;
-        }
-
-        .screen-border { 
-            background: #000; 
-            aspect-ratio: 16 / 9; 
-            position: relative; 
-            overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-
-        #tap-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
-            z-index: 100;
-        }
-
-        #noise-canvas {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-            opacity: 0.9;
-            display: none;
-        }
-
+        .tv-unit { background: var(--target-navy); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 15px 35px rgba(0,0,0,0.4); position: relative; }
+        .screen-border { background: #000; aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #tap-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; }
+        #noise-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.9; display: none; }
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
-        .tv-controls {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            padding: 10px 0 5px 0;
-        }
-        
-        .power-btn, .eject-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.2);
-            background: #111;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-        
-        .power-btn.active {
-            border-color: var(--power-green);
-            box-shadow: 0 0 15px var(--power-green);
-        }
-        
+        .tv-controls { display: flex; justify-content: center; gap: 20px; padding: 10px 0 5px 0; }
+        .power-btn, .eject-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); background: #111; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+        .power-btn.active { border-color: var(--power-green); box-shadow: 0 0 15px var(--power-green); }
         .power-icon { width: 15px; height: 15px; fill: var(--power-red); }
         .power-btn.active .power-icon { fill: var(--power-green); }
-
         .eject-icon { width: 18px; height: 18px; fill: #666; }
-        .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
-        .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
 
-        .control-panel { 
-            background: var(--target-navy); 
-            border: 1px solid rgba(255,255,255,0.1); 
-            border-radius: 4px; 
-            padding: 20px; 
-        }
-        
-        input { 
-            width: 100%; 
-            background: var(--dark-navy); 
-            border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); 
-            padding: 12px; 
-            outline: none; 
-            font-family: inherit; 
-            box-sizing: border-box; 
-            direction: ltr;   
-        }
+        .control-panel { background: var(--target-navy); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 20px; }
+        input { width: 100%; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); color: var(--pure-white); padding: 12px; outline: none; font-family: inherit; direction: ltr; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); color: var(--pure-white); cursor: pointer; font-family: inherit; margin-top: 10px; }
 
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        button { 
-            flex: 1; padding: 12px; background: var(--dark-navy); border: 1px solid rgba(255,255,255,0.2); 
-            color: var(--pure-white); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase; 
-        }
-
-        #authSection { display: block; }
-        #adminSection { display: none; }
-
-        .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
-        
-        .vhs-shelf { 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 20px; 
-            justify-content: center; 
-            margin-top: 15px; 
-            padding-bottom: 40px;
-            perspective: 1000px;
-        }
-
-        .vhs-tape {
-            background: #1a1a1a;
-            width: 130px;
-            height: 42px;
-            position: relative;
-            cursor: pointer;
-            border-radius: 3px;
-            box-shadow: 4px 4px 10px rgba(0,0,0,0.5);
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            border: 1px solid #111;
-        }
-
-        .tape-label {
-            position: relative;
-            z-index: 3;
-            color: #333;
-            font-size: 10px;
-            font-weight: bold;
-            text-align: center;
-            width: 80%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-family: sans-serif;
-        }
-
-        .vhs-tape::before {
-            content: "";
-            position: absolute;
-            top: 5px; left: 8px; right: 8px; bottom: 5px;
-            background: linear-gradient(to bottom, #fff 0%, #e0e0e0 100%);
-            border-radius: 2px;
-            z-index: 1;
-        }
-
-        .vhs-tape::after {
-            content: "";
-            position: absolute;
-            left: 0; top: 0; width: 5px; height: 100%;
-            background: var(--power-red);
-            z-index: 2;
-        }
+        .vhs-shelf { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 15px; }
+        .vhs-tape { background: #1a1a1a; width: 120px; height: 40px; position: relative; cursor: pointer; border-radius: 3px; border: 1px solid #111; display: flex; align-items: center; justify-content: center; }
+        .tape-label { color: #333; font-size: 10px; font-weight: bold; z-index: 3; background: white; width: 80%; text-align: center; }
     </style>
 </head>
 <body> 
@@ -199,38 +64,27 @@
         <div class="screen-border">
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline></video>
+            <video id="video" controls playsinline webkit-playsinline></video>
         </div>
         
         <div class="tv-controls">
             <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
-                <svg class="power-icon" viewBox="0 0 24 24">
-                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
-                </svg>
+                <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
             </div>
-            <div class="eject-btn" id="publicEjectBtn" onclick="publicEject()">
-                <svg class="eject-icon" viewBox="0 0 24 24">
-                    <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
-                </svg>
+            <div class="eject-btn" onclick="publicEject()">
+                <svg class="eject-icon" viewBox="0 0 24 24" width="20"><path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/></svg>
             </div>
         </div>
     </div>
 
     <div class="control-panel">
-        <div id="authSection">
-            <input type="password" id="adminPass" placeholder="ENTER ACCESS CODE">
-        </div>
-        
-        <div id="adminSection">
-            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
-            <div class="btn-group">
-                <button style="color: #ff6b6b;" onclick="clearDB()">ADMIN RESET</button>
-                <button onclick="adminLogout()">LOGOUT</button>
-            </div>
+        <div id="authSection"><input type="password" id="adminPass" placeholder="ENTER ACCESS CODE"></div>
+        <div id="adminSection" style="display:none;">
+            <input type="text" id="videoUrl" placeholder="PASTE LINK">
+            <button onclick="adminLogout()">LOGOUT</button>
         </div>
     </div>
 
-    <div class="vhs-library-title">LIBRARY:</div>
     <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
@@ -247,7 +101,6 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
@@ -255,28 +108,26 @@
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
     let hls = null;
-    let isAdmin = false;
     let isPoweredOn = false;
-    let userHasInteracted = false;
 
-    // دالة تحميل الفيديو المخصصة لسفاري
+    // دالة تحميل الفيديو المضبوطة لسفاري
     function loadVideo(url) {
         if (!url) return;
         
-        // 1. تنظيف أي مشغل قديم
         if (hls) { hls.destroy(); hls = null; }
+        
+        // تصفير الفيديو قبل التحميل الجديد
+        video.pause();
         video.src = "";
+        video.load();
 
-        // 2. الكشف عن سفاري (iPhone/iPad/Mac Safari)
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || 
-                         (navigator.userAgent.includes("iPhone") || navigator.userAgent.includes("iPad"));
+        // كشف سفاري
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
         if (isSafari || video.canPlayType('application/vnd.apple.mpegurl')) {
-            // في سفاري نضع الرابط مباشرة ونستخدم المشغل الأصلي
+            // سفاري يشغل m3u8 أصلياً
             video.src = url;
-            video.load();
         } else if (Hls.isSupported()) {
-            // بقية المتصفحات نستخدم مكتبة HLS
             hls = new Hls({ forceSyncM3U8: true });
             hls.loadSource(url);
             hls.attachMedia(video);
@@ -284,49 +135,38 @@
             video.src = url;
         }
 
-        // محاولة التشغيل الصامت لضمان عمله في سفاري
+        // إجبار التشغيل في سفاري (يجب أن يكون صامتاً في البداية)
         video.muted = true;
-        video.play().catch(e => console.log("Autoplay blocked"));
+        video.play().catch(e => console.log("Safari auto-play blocked, waiting for touch."));
     }
 
     function handleSyncUpdate(data) {
         if (!data) return;
         
-        // مزامنة الطاقة
         if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
             isPoweredOn = data.tvPower;
-            if (isPoweredOn) {
-                powerBtn.classList.add('active');
-                overlay.style.display = 'none';
-            } else {
-                powerBtn.classList.remove('active');
-                overlay.style.display = 'block';
-                video.pause();
-            }
+            powerBtn.classList.toggle('active', isPoweredOn);
+            overlay.style.display = isPoweredOn ? 'none' : 'block';
+            if (!isPoweredOn) video.pause();
         }
 
-        if (!isPoweredOn) return;
-
-        // مزامنة الفيديو
-        if (data.url) {
+        if (isPoweredOn && data.url) {
             video.style.display = 'block';
             if (video.src !== data.url && !video.src.includes(encodeURIComponent(data.url))) {
                 loadVideo(data.url);
             }
-            
-            if (data.isPlaying) video.play(); else video.pause();
+            data.isPlaying ? video.play() : video.pause();
         } else {
             video.style.display = 'none';
-            video.pause();
         }
     }
 
-    // --- بقية الوظائف الأساسية ---
+    // الأزرار والوظائف
     function handlePowerClick() { syncRef.update({ tvPower: !isPoweredOn }); }
     function publicEject() { syncRef.update({ url: null, isPlaying: false }); }
-    
+
     syncRef.on('value', snap => handleSyncUpdate(snap.val()));
-    
+
     tapesRef.on('value', snap => {
         const shelf = document.getElementById('vhsShelf');
         shelf.innerHTML = "";
@@ -342,14 +182,17 @@
     });
 
     document.getElementById('adminPass').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).then(() => {
-            isAdmin = true;
+        if (e.target.value === "123456") { // ضع كود الوصول الخاص بك
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-        });
+        }
     });
 
-    function adminLogout() { auth.signOut().then(() => location.reload()); }
+    document.getElementById('videoUrl').addEventListener('change', (e) => {
+        syncRef.update({ url: e.target.value, isPlaying: true });
+    });
+
+    function adminLogout() { location.reload(); }
 </script>
 </body>
 </html>
