@@ -284,7 +284,7 @@
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
-    let userHasInteracted = false; // متغير جديد لمنع التوقف عند الدخول
+    let userHasInteracted = false;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -302,7 +302,6 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // رصد أي تفاعل للمستخدم مع الصفحة
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
@@ -376,7 +375,7 @@
                     currentTime: 0, 
                     isPlaying: true, 
                     adminPresent: isAdmin,
-                    lastUpdated: Date.now() 
+                    lastUpdated: Date.now() // توقيت البدء
                 });
             };
             shelf.appendChild(el);
@@ -425,7 +424,13 @@
         }
     }
 
-    // لا يرسل حالة الإيقاف/التشغيل إلا إذا كان هناك تفاعل حقيقي من المستخدم
+    // مراقب نهاية الفيديو - لإيقافه عند الجميع
+    video.onended = () => {
+        if (!isRemoteUpdate && isPoweredOn) {
+            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
+        }
+    };
+
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
@@ -434,7 +439,11 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            syncRef.update({ isPlaying: true, currentTime: video.currentTime });
+            syncRef.update({ 
+                isPlaying: true, 
+                currentTime: video.currentTime,
+                lastUpdated: Date.now() - (video.currentTime * 1000) 
+            });
         }
     };
 
@@ -462,9 +471,15 @@
             loadVideo(data.url);
         }
 
+        // حساب الوقت الصحيح بناءً على زمن البدء (التزامن الدقيق للانضمام المتأخر)
+        let targetTime = data.currentTime;
+        if (data.isPlaying && data.lastUpdated) {
+            const elapsed = (Date.now() - data.lastUpdated) / 1000;
+            targetTime = elapsed > 0 ? elapsed : data.currentTime;
+        }
+
         if (data.isPlaying) { 
             video.play().catch(error => {
-                // محاولة التشغيل الصامت إذا كان التفاعل لم يحدث بعد
                 video.muted = true;
                 video.play();
             }); 
@@ -472,8 +487,8 @@
             video.pause(); 
         }
 
-        const timeDiff = Math.abs(video.currentTime - data.currentTime);
-        if (timeDiff > 3) video.currentTime = data.currentTime;
+        const timeDiff = Math.abs(video.currentTime - targetTime);
+        if (timeDiff > 2) video.currentTime = targetTime;
         
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
@@ -481,7 +496,7 @@
     auth.onAuthStateChanged(user => {
         if (user && user.email === "t@t.tt") {
             isAdmin = true;
-            userHasInteracted = true; // الأدمن دائماً يعتبر متفاعل
+            userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
             
@@ -491,7 +506,8 @@
                 if (!video.paused && !isRemoteUpdate && isAdmin) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
-                        lastUpdated: Date.now(),
+                        // تحديث نقطة المرجع للوقت لضمان تزامن المنضمين الجدد
+                        lastUpdated: Date.now() - (video.currentTime * 1000),
                         adminPresent: true 
                     });
                 }
