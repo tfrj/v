@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - IPTV Ultimate</title>
+    <title>VHS Sync Control - IPTV Fixed</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -303,24 +303,26 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    // --- دالة IPTV المطورة (إصلاح 0 قناة) ---
+    // --- الدالة المحدثة لحل مشكلة CORS وقراءة الروابط المعقدة ---
     async function loadIptvFromUrl() {
         const btn = document.getElementById('iptvBtn');
         const originalUrl = document.getElementById('iptvUrl').value.trim();
         if(!originalUrl) return alert("يرجى وضع رابط M3U");
         
-        btn.innerText = "جاري التحميل...";
+        btn.innerText = "جاري الفحص...";
         btn.disabled = true;
 
-        // استخدام بروكسي بديل قوي
+        // استخدام بروكسي متطور
         const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(originalUrl);
         
         try {
             const response = await fetch(proxyUrl);
             const json = await response.json();
-            const data = json.contents; // جلب المحتوى الخام من البروكسي
-            
-            if(!data || data.length < 10) throw new Error("الملف فارغ");
+            const data = json.contents; 
+
+            if(!data || !data.includes('#EXTM3U')) {
+                throw new Error("تنسيق ملف غير مدعوم");
+            }
 
             const lines = data.split('\n');
             let count = 0;
@@ -328,19 +330,19 @@
             for (let i = 0; i < lines.length; i++) {
                 let line = lines[i].trim();
                 if (line.startsWith('#EXTINF:')) {
-                    // محاولة استخراج الاسم بعد الفاصلة الأخيرة
                     const namePart = line.substring(line.lastIndexOf(',') + 1).trim() || "قناة IPTV";
                     
-                    // البحث عن الرابط في الأسطر التالية (حتى نجد رابط http)
                     let videoUrl = "";
-                    for(let j = i + 1; j < i + 5 && j < lines.length; j++){
-                        if(lines[j].trim().startsWith('http')){
-                            videoUrl = lines[j].trim();
+                    // البحث في الأسطر الـ 10 التالية عن رابط يبدأ بـ http
+                    for (let j = i + 1; j < i + 10 && j < lines.length; j++) {
+                        let nextLine = lines[j].trim();
+                        if (nextLine.toLowerCase().startsWith('http')) {
+                            videoUrl = nextLine;
                             break;
                         }
                     }
 
-                    if(videoUrl) {
+                    if (videoUrl) {
                         tapesRef.push({ 
                             name: namePart, 
                             url: videoUrl, 
@@ -352,15 +354,14 @@
                 }
             }
 
-            if(count === 0) {
-                alert("تنبيه: تم جلب الملف ولكن لم يتم العثور على قنوات داخله. تأكد أن الرابط هو ملف M3U مباشر وليس صفحة ويب.");
-            } else {
-                alert(`تم استيراد ${count} قناة بنجاح!`);
+            if(count > 0) {
+                alert(`تم بنجاح إضافة ${count} قناة للرف!`);
                 document.getElementById('iptvUrl').value = "";
+            } else {
+                alert("لم يتم العثور على قنوات داخل الملف.");
             }
         } catch (e) {
-            console.error(e);
-            alert("خطأ في الاتصال بالسيرفر. تأكد أن الرابط يعمل في متصفحك أولاً.");
+            alert("فشل الجلب: السيرفر محمي ضد CORS أو الرابط غير مباشر.");
         } finally {
             btn.innerText = "تحديث الرف من الرابط";
             btn.disabled = false;
@@ -402,13 +403,6 @@
         }
         if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
-    }
-
-    function addNewTape() {
-        const name = document.getElementById('newTapeName')?.value || "شريط غير مسمى";
-        const url = document.getElementById('newTapeUrl')?.value;
-        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() });
     }
 
     function deleteTape(key) {
