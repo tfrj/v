@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - Final Fix</title>
+    <title>VHS Sync Control - Optimized</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -104,21 +104,6 @@
         .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
         .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
 
-        /* زر الطوارئ لسفاري */
-        #safari-fix-btn {
-            display: none;
-            width: 100%;
-            background: #e67e22;
-            color: white;
-            border: none;
-            padding: 10px;
-            margin-top: 10px;
-            font-family: inherit;
-            font-size: 10px;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
         .control-panel { 
             background: var(--target-navy); 
             border: 1px solid rgba(255,255,255,0.1); 
@@ -175,29 +160,6 @@
             border: 1px solid #111;
         }
 
-        .vhs-tape::before {
-            content: "";
-            position: absolute;
-            top: 5px;
-            left: 8px;
-            right: 8px;
-            bottom: 5px;
-            background: linear-gradient(to bottom, #fff 0%, #e0e0e0 100%);
-            border-radius: 2px;
-            z-index: 1;
-        }
-
-        .vhs-tape::after {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 5px;
-            height: 100%;
-            background: var(--power-red);
-            z-index: 2;
-        }
-
         .tape-label {
             position: relative;
             z-index: 3;
@@ -212,27 +174,21 @@
             font-family: sans-serif;
         }
 
-        .vhs-tape:hover {
-            transform: translateY(-8px) rotateX(10deg);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.6);
-            filter: brightness(1.1);
+        .vhs-tape::before {
+            content: "";
+            position: absolute;
+            top: 5px; left: 8px; right: 8px; bottom: 5px;
+            background: linear-gradient(to bottom, #fff 0%, #e0e0e0 100%);
+            border-radius: 2px;
+            z-index: 1;
         }
 
-        .delete-btn {
+        .vhs-tape::after {
+            content: "";
             position: absolute;
-            top: 2px;
-            right: 2px;
+            left: 0; top: 0; width: 5px; height: 100%;
             background: var(--power-red);
-            color: white;
-            border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            font-size: 9px;
-            z-index: 10;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            border: none;
+            z-index: 2;
         }
     </style>
 </head>
@@ -258,8 +214,6 @@
                 </svg>
             </div>
         </div>
-
-        <button id="safari-fix-btn" onclick="openExternalPlayer()">مشكلة في التشغيل؟ اضغط للفتح في VLC</button>
     </div>
 
     <div class="control-panel">
@@ -268,18 +222,7 @@
         </div>
         
         <div id="adminSection">
-            <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
-            
-            <div class="admin-tape-controls">
-                <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
-                <div style="display: flex; gap: 5px; flex-direction: column;">
-                    <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
-                    <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
-                    <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
-                </div>
-            </div>
-
             <div class="btn-group">
                 <button style="color: #ff6b6b;" onclick="clearDB()">ADMIN RESET</button>
                 <button onclick="adminLogout()">LOGOUT</button>
@@ -287,7 +230,7 @@
         </div>
     </div>
 
-    <div class="vhs-library-title">اختر شريطاً للتشغيل:</div>
+    <div class="vhs-library-title">LIBRARY:</div>
     <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
@@ -308,193 +251,104 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    const canvas = document.getElementById('noise-canvas');
-    const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
-    const safariFixBtn = document.getElementById('safari-fix-btn');
-
-    let noiseID, audioCtx, noiseNode, isAdmin = false;
-    let isPoweredOn = false;
-    let isRemoteUpdate = false;
-    let globalAdminPresent = false;
-    let userHasInteracted = false;
-    let currentUrl = "";
     let hls = null;
+    let isAdmin = false;
+    let isPoweredOn = false;
+    let userHasInteracted = false;
 
-    // كشف مستخدمي الآيفون لإظهار زر الإصلاح
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
+    // دالة تحميل الفيديو المخصصة لسفاري
     function loadVideo(url) {
         if (!url) return;
-        currentUrl = url;
         
+        // 1. تنظيف أي مشغل قديم
         if (hls) { hls.destroy(); hls = null; }
+        video.src = "";
 
-        // استخدام البروكزي الذي فعلته أنت لتخطي الـ CORS
-        const proxyPrefix = "https://cors-anywhere.herokuapp.com/";
-        const finalUrl = url.startsWith("http://") ? proxyPrefix + url : url;
+        // 2. الكشف عن سفاري (iPhone/iPad/Mac Safari)
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || 
+                         (navigator.userAgent.includes("iPhone") || navigator.userAgent.includes("iPad"));
 
-        if (Hls.isSupported()) {
+        if (isSafari || video.canPlayType('application/vnd.apple.mpegurl')) {
+            // في سفاري نضع الرابط مباشرة ونستخدم المشغل الأصلي
+            video.src = url;
+            video.load();
+        } else if (Hls.isSupported()) {
+            // بقية المتصفحات نستخدم مكتبة HLS
             hls = new Hls({ forceSyncM3U8: true });
-            hls.loadSource(finalUrl);
+            hls.loadSource(url);
             hls.attachMedia(video);
-            hls.on(Hls.Events.ERROR, function(e, data) {
-                if(isIOS) safariFixBtn.style.display = 'block';
-            });
-        } 
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // دعم سفاري الأصلي
-            video.src = url; // جرب الرابط المباشر أولاً
-            if(isIOS) safariFixBtn.style.display = 'block';
-        }
-        else {
+        } else {
             video.src = url;
         }
-    }
 
-    function openExternalPlayer() {
-        if (!currentUrl) return;
-        // محاولة الفتح في تطبيق VLC إذا كان مثبتاً
-        window.location.href = "vlc://" + currentUrl;
-    }
-
-    // --- بقية وظائف الكود الأصلية (بدون تغيير) ---
-    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
-    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
-
-    function handlePowerClick() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
-            return;
-        }
-        syncRef.update({ tvPower: !isPoweredOn });
-    }
-
-    function applyPowerState(state) {
-        isPoweredOn = state;
-        if (isPoweredOn) {
-            powerBtn.classList.add('active');
-            overlay.style.display = 'none';
-            initAudio();
-            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
-        } else {
-            powerBtn.classList.remove('active');
-            overlay.style.display = 'block';
-            video.style.display = 'none';
-            safariFixBtn.style.display = 'none';
-            video.pause();
-            toggleStatic(false);
-            if (audioCtx) audioCtx.suspend();
-        }
-    }
-
-    function publicEject() {
-        if (globalAdminPresent && !isAdmin) return;
-        if(!isPoweredOn) return;
-        syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
-    }
-
-    function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
-        const url = document.getElementById('newTapeUrl').value;
-        if(!url) return;
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() });
-    }
-
-    tapesRef.on('value', (snap) => {
-        const shelf = document.getElementById('vhsShelf');
-        shelf.innerHTML = "";
-        const data = snap.val();
-        if(!data) return;
-        Object.keys(data).forEach(key => {
-            const tape = data[key];
-            const el = document.createElement('div');
-            el.className = 'vhs-tape';
-            el.innerHTML = `<div class="tape-label">${tape.name}</div>`;
-            el.onclick = () => {
-                if (globalAdminPresent && !isAdmin) return;
-                if(!isPoweredOn) return;
-                syncRef.update({ url: tape.url, currentTime: 0, isPlaying: true, lastUpdated: Date.now() });
-            };
-            shelf.appendChild(el);
-        });
-    });
-
-    function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-    
-    function startStaticSound() {
-        if (!audioCtx || noiseNode || !isPoweredOn) return;
-        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; noiseNode.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.04;
-        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
-        noiseNode.start();
-    }
-
-    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
-
-    function loopNoise() {
-        if (!isPoweredOn) return;
-        canvas.width = 200; canvas.height = 150;
-        const idata = ctx.createImageData(canvas.width, canvas.height);
-        const b32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
-        ctx.putImageData(idata, 0, 0);
-        noiseID = requestAnimationFrame(loopNoise);
-    }
-
-    function toggleStatic(show) {
-        if (show && isPoweredOn) {
-            canvas.style.display = 'block';
-            if (!noiseID) loopNoise();
-            stopStaticSound(); startStaticSound();
-        } else {
-            canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); noiseID = null;
-            stopStaticSound();
-        }
+        // محاولة التشغيل الصامت لضمان عمله في سفاري
+        video.muted = true;
+        video.play().catch(e => console.log("Autoplay blocked"));
     }
 
     function handleSyncUpdate(data) {
         if (!data) return;
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
-        globalAdminPresent = data.adminPresent || false;
-        if (!isPoweredOn) return;
-        if (!data.url) {
-            video.style.display = 'none'; safariFixBtn.style.display = 'none';
-            video.pause(); toggleStatic(true); return;
+        
+        // مزامنة الطاقة
+        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) {
+            isPoweredOn = data.tvPower;
+            if (isPoweredOn) {
+                powerBtn.classList.add('active');
+                overlay.style.display = 'none';
+            } else {
+                powerBtn.classList.remove('active');
+                overlay.style.display = 'block';
+                video.pause();
+            }
         }
-        isRemoteUpdate = true;
-        video.style.display = 'block'; 
-        toggleStatic(false); 
-        if (video.src !== data.url && !video.src.includes(encodeURIComponent(data.url))) loadVideo(data.url);
-        if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); }); 
-        else video.pause();
-        setTimeout(() => { isRemoteUpdate = false; }, 300);
+
+        if (!isPoweredOn) return;
+
+        // مزامنة الفيديو
+        if (data.url) {
+            video.style.display = 'block';
+            if (video.src !== data.url && !video.src.includes(encodeURIComponent(data.url))) {
+                loadVideo(data.url);
+            }
+            
+            if (data.isPlaying) video.play(); else video.pause();
+        } else {
+            video.style.display = 'none';
+            video.pause();
+        }
     }
 
-    auth.onAuthStateChanged(user => {
-        if (user && user.email === "t@t.tt") {
-            isAdmin = true;
-            document.getElementById('authSection').style.display = 'none';
-            document.getElementById('adminSection').style.display = 'block';
-            syncRef.update({ adminPresent: true });
-        }
+    // --- بقية الوظائف الأساسية ---
+    function handlePowerClick() { syncRef.update({ tvPower: !isPoweredOn }); }
+    function publicEject() { syncRef.update({ url: null, isPlaying: false }); }
+    
+    syncRef.on('value', snap => handleSyncUpdate(snap.val()));
+    
+    tapesRef.on('value', snap => {
+        const shelf = document.getElementById('vhsShelf');
+        shelf.innerHTML = "";
+        const data = snap.val();
+        if (data) Object.keys(data).forEach(key => {
+            const tape = data[key];
+            const el = document.createElement('div');
+            el.className = 'vhs-tape';
+            el.innerHTML = `<div class="tape-label">${tape.name}</div>`;
+            el.onclick = () => syncRef.update({ url: tape.url, isPlaying: true });
+            shelf.appendChild(el);
+        });
     });
 
     document.getElementById('adminPass').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
+        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).then(() => {
+            isAdmin = true;
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'block';
+        });
     });
 
-    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-    function clearDB() { if (confirm("إعادة ضبط؟")) syncRef.set({ tvPower: false }); }
     function adminLogout() { auth.signOut().then(() => location.reload()); }
 </script>
 </body>
