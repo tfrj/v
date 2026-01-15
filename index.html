@@ -2,44 +2,34 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>مشغل القنوات</title>
-    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل المصارعة السريع</title>
     <style>
-        body { background: #000; color: #fff; margin: 0; display: flex; height: 100vh; font-family: sans-serif; }
-        #sidebar { width: 250px; background: #111; overflow-y: auto; border-left: 1px solid #333; }
-        .ch { padding: 12px; border-bottom: 1px solid #222; cursor: pointer; font-size: 13px; }
-        .ch:hover { background: #00aeef; color: #000; }
-        #main { flex-grow: 1; background: #000; }
-        .video-js { width: 100% !important; height: 100% !important; }
+        body { background: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        .btn { background: #00aeef; color: white; padding: 20px 40px; border: none; border-radius: 10px; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; box-shadow: 0 4px 15px rgba(0,174,239,0.4); }
+        .btn:hover { background: #008fbb; }
+        p { color: #888; margin-top: 15px; }
     </style>
 </head>
 <body>
-    <div id="sidebar"><div id="list" style="padding:10px;">جاري التحميل...</div></div>
-    <div id="main"><video id="vid" class="video-js vjs-default-skin" controls preload="auto"></video></div>
 
-    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+    <h1>جاهز للمشاهدة؟</h1>
+    
+    <a href="http://webtv.iptvsmarters.com/" target="_blank" class="btn" onclick="copyData()">اضغط هنا وافتح المشغل</a>
+
+    <p id="msg">سيتم فتح الموقع الرسمي، استخدم البيانات التالية:</p>
+    
+    <div style="background: #222; padding: 15px; border-radius: 8px; margin-top: 10px; text-align: left; font-family: monospace;">
+        User: iptvloadphez <br>
+        Pass: 169b76d326 <br>
+        Host: http://cf.scma.me
+    </div>
+
     <script>
-        const u="iptvloadphez", p="169b76d326", h="http://cf.scma.me";
-        const proxy = "https://api.allorigins.win/raw?url="; // هذا اللي بيشغلها لك
-
-        async function start() {
-            try {
-                const res = await fetch(proxy + encodeURIComponent(`${h}/player_api.php?username=${u}&password=${p}&action=get_live_streams`));
-                const data = await res.json();
-                document.getElementById('list').innerHTML = data.map(ch => `
-                    <div class="ch" onclick="play('${ch.stream_id}')">${ch.name}</div>
-                `).join('');
-            } catch (e) { document.getElementById('list').innerText = "فشل! حدث الصفحة"; }
+        function copyData() {
+            alert("تم تجهيز البيانات. عند فتح الموقع، أدخل اليوزر والباسورد والسيرفر المكتوبين أمامك.");
         }
-
-        function play(id) {
-            const player = videojs('vid');
-            // نمرر رابط البث عبر البروكسي عشان يشتغل في المتصفح غصب
-            const streamUrl = proxy + encodeURIComponent(`${h}/live/${u}/${p}/${id}.m3u8`);
-            player.src({ src: streamUrl, type: 'application/x-mpegURL' });
-            player.play();
-        }
-        start();
     </script>
+
 </body>
 </html>
