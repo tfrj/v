@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - Enhanced</title>
+    <title>VHS Sync & Receiver</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -132,6 +132,15 @@
         #authSection { display: block; }
         #adminSection { display: none; }
 
+        /* ستايل نظام الاستقبال الجديد */
+        .receiver-info {
+            background: rgba(0,0,0,0.3);
+            border: 1px dashed var(--eject-yellow);
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
         .vhs-library-title { margin-top: 30px; font-size: 14px; text-align: center; opacity: 0.8; }
         
         .vhs-shelf { 
@@ -251,6 +260,11 @@
         </div>
         
         <div id="adminSection">
+            <div class="receiver-info">
+                <span style="color:var(--eject-yellow); font-size:12px;">نظام الاستقبال نشط</span><br>
+                <small style="font-size:10px; opacity:0.7;">سيتم عرض أي فيديو ترسله من Web Video Caster فوراً</small>
+            </div>
+
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
             <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
@@ -285,7 +299,7 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let serverTimeOffset = 0; // جديد لمزامنة الوقت بدقة
+    let serverTimeOffset = 0;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -303,7 +317,7 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // حساب فرق التوقيت مع سيرفر فايربيس لضمان المزامنة
+    // مزامنة الوقت
     db.ref(".info/serverTimeOffset").on("value", (snap) => {
         serverTimeOffset = snap.val() || 0;
     });
@@ -456,7 +470,7 @@
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
-                currentTime: video.currentTime, 
+                currentTime: video.currentTime,
                 lastUpdated: Date.now() + serverTimeOffset - (video.currentTime * 1000) 
             });
         }
