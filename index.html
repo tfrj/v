@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control - Fixed Audio</title>
+    <title>VHS Sync Control</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         :root { 
@@ -60,6 +61,11 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
         }
 
         #noise-canvas {
@@ -71,42 +77,16 @@
         }
 
         video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-        
-        #youtube-layer { 
-            width: 100%; 
-            height: 100%; 
-            position: absolute; 
-            top:0; left:0; 
-            z-index: 3; 
-            display: none; 
-        }
-
-        /* زر تفعيل الصوت */
-        #unmute-hint {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 150;
-            background: rgba(255, 75, 43, 0.9);
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 10px;
-            cursor: pointer;
-            display: none;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        #yt-player-container { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 3; display: none; pointer-events: none; }
 
         .tv-controls {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 15px;
             padding: 10px 0 5px 0;
         }
         
-        .power-btn, .eject-btn, .yt-btn {
+        .power-btn, .eject-btn, .action-btn {
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -127,11 +107,8 @@
         .power-icon { width: 15px; height: 15px; fill: var(--power-red); }
         .power-btn.active .power-icon { fill: var(--power-green); }
 
-        .eject-icon { width: 18px; height: 18px; fill: #666; }
-        .eject-btn:hover { border-color: var(--eject-yellow); box-shadow: 0 0 10px var(--eject-yellow); }
-        .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
-
-        .yt-btn:hover { border-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
+        .eject-icon, .action-icon { width: 18px; height: 18px; fill: #666; }
+        .eject-btn:hover .eject-icon, .action-btn:hover .action-icon { fill: var(--pure-white); }
 
         .control-panel { 
             background: var(--target-navy); 
@@ -253,13 +230,12 @@
 <body> 
 
 <div class="container">
-    <div class="tv-unit">
-        <div class="screen-border">
-            <div id="unmute-hint" onclick="unmuteYoutube()">اضغط هنا لتشغيل الصوت 🔊</div>
-            <div id="tap-overlay"></div>
+    <div class="tv-unit" id="tvUnit">
+        <div class="screen-border" id="screen">
+            <div id="tap-overlay" onclick="handlePowerClick()">CH-00: CLICK POWER</div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
-            <div id="youtube-layer"></div>
+            <div id="yt-player-container"></div>
         </div>
         
         <div class="tv-controls">
@@ -273,8 +249,11 @@
                     <path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/>
                 </svg>
             </div>
-            <div class="yt-btn" onclick="playRandomYoutube()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff0000"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 4-8 4z"/></svg>
+            <div class="action-btn" title="Random YouTube" onclick="playRandomYT()">
+                <svg class="action-icon" viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 .6-.03 1.29-.1 2.09-.06.8-.15 1.43-.28 1.9-.13.47-.39.85-.75 1.15-.36.3-.78.51-1.26.63-.48.12-1.2.22-2.15.3-1.45.11-2.45.16-3.46.16L12 18.23c-1.01 0-2.01-.05-3.46-.16-.95-.08-1.67-.18-2.15-.3-.48-.12-.9-.33-1.26-.63-.36-.3-.62-.68-.75-1.15-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L4 12c0-.6.03-1.29.1-2.09.06-.8.15-1.43.28-1.9.13-.47.39-.85.75-1.15.36-.3.78-.51 1.26-.63.48-.12 1.2-.22 2.15-.3 1.45-.11 2.45-.16 3.46-.16L12 5.77c1.01 0 2.01.05 3.46.16.95.08 1.67.18 2.15.3.48.12.9.33 1.26.63.36.3.62.68.75 1.15z"/></svg>
+            </div>
+            <div class="action-btn" title="Full Screen" onclick="toggleFullScreen()">
+                <svg class="action-icon" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </div>
         </div>
     </div>
@@ -314,17 +293,12 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
-    const youtubeLayer = document.getElementById('youtube-layer');
-    const unmuteHint = document.getElementById('unmute-hint');
-    
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let currentYtId = null;
-
-    const YT_API_KEY = "AIzaSyApcJFw0ykpP16ao2D82f8cGECFapJu1k4";
+    let ytPlayer = null;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -342,58 +316,54 @@
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
 
-    // دالة فتح الصوت لليوتيوب
-    function unmuteYoutube() {
-        if (currentYtId) {
-            let startAt = 0;
-            syncRef.once('value', (snap) => {
-                const data = snap.val();
-                if (data && data.lastUpdated) {
-                    startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
-                }
-                // إعادة تحميل الـ iframe بدون Mute
-                const embedUrl = `https://www.youtube.com/embed/${currentYtId}?autoplay=1&mute=0&controls=0&start=${startAt}&rel=0`;
-                youtubeLayer.innerHTML = `<iframe width="100%" height="100%" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
-                unmuteHint.style.display = 'none';
-            });
-        }
+    // يوتيوب API
+    function onYouTubeIframeAPIReady() {
+        ytPlayer = new YT.Player('yt-player-container', {
+            height: '100%',
+            width: '100%',
+            playerVars: { 'autoplay': 1, 'controls': 0, 'disablekb': 1, 'rel': 0 },
+            events: { 'onReady': onPlayerReady }
+        });
     }
+    function onPlayerReady(event) { if(isPoweredOn) event.target.unMute(); }
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
-    function generateRandomQuery() {
-        const chars = "abcdefghijklmnopqrstuvwxyz";
-        return chars.charAt(Math.floor(Math.random() * chars.length)) + 
-               chars.charAt(Math.floor(Math.random() * chars.length));
+    function toggleFullScreen() {
+        const elem = document.getElementById('tvUnit');
+        if (!document.fullscreenElement) {
+            elem.requestFullscreen().catch(err => { alert(`Error: ${err.message}`); });
+        } else {
+            document.exitFullscreen();
+        }
     }
 
-    async function playRandomYoutube() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل حالياً"); return; }
-        if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        
-        const q = generateRandomQuery();
-        try {
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q=${q}&type=video&key=${YT_API_KEY}`);
-            const data = await res.json();
-            if(data.items && data.items.length > 0) {
-                const vidId = data.items[Math.floor(Math.random() * data.items.length)].id.videoId;
-                syncRef.update({ 
-                    url: vidId, 
-                    isYoutube: true, 
-                    isPlaying: true, 
-                    lastUpdated: Date.now(),
-                    adminPresent: isAdmin 
-                });
-            }
-        } catch (e) { console.error(e); }
+    async function playRandomYT() {
+        if (globalAdminPresent && !isAdmin) return;
+        if (!isPoweredOn) return;
+        const queries = ['vhs aesthetic', 'retro 90s', 'lofi hip hop', 'old commercials'];
+        const q = queries[Math.floor(Math.random()*queries.length)];
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${q}&type=video&key=AIzaSyApcJFw0ykpP16ao2D82f8cGECFapJu1k4`);
+        const data = await res.json();
+        const vid = data.items[Math.floor(Math.random()*data.items.length)];
+        syncRef.update({ 
+            url: vid.id.videoId, 
+            isYT: true,
+            isPlaying: true, 
+            lastUpdated: Date.now(),
+            adminPresent: isAdmin 
+        });
     }
 
     function handlePowerClick() {
         userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل"); return; }
-        syncRef.update({ tvPower: !isPoweredOn });
+        if (globalAdminPresent && !isAdmin) {
+            alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
+            return;
+        }
+        const nextState = !isPoweredOn;
+        syncRef.update({ tvPower: nextState });
     }
 
     function applyPowerState(state) {
@@ -407,23 +377,23 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            youtubeLayer.style.display = 'none';
-            youtubeLayer.innerHTML = "";
-            unmuteHint.style.display = 'none';
+            document.getElementById('yt-player-container').style.display = 'none';
             video.pause();
+            if(ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
     }
 
     function publicEject() {
-        if (globalAdminPresent && !isAdmin) { alert("الأدمن متصل"); return; }
+        userHasInteracted = true;
+        if (globalAdminPresent && !isAdmin) return;
         if(!isPoweredOn) return;
         syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
     }
 
     function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط";
+        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
         const url = document.getElementById('newTapeUrl').value;
         if(!url) return;
         tapesRef.push({ name: name, url: url, timestamp: Date.now() });
@@ -438,11 +408,14 @@
             const tape = data[key];
             const el = document.createElement('div');
             el.className = 'vhs-tape';
-            el.innerHTML = `<div class="tape-label">${tape.name}</div>`;
+            el.innerHTML = `<div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div><div class="tape-label">${tape.name}</div>`;
             el.onclick = () => {
                 if (globalAdminPresent && !isAdmin) return;
                 if(!isPoweredOn) return;
-                syncRef.update({ url: tape.url, isYoutube: false, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
+                let isYT = tape.url.includes('youtube.com') || tape.url.includes('youtu.be') || (tape.url.length === 11);
+                let url = tape.url;
+                if(isYT && tape.url.includes('v=')) url = tape.url.split('v=')[1].split('&')[0];
+                syncRef.update({ url: url, isYT: isYT, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
             };
             shelf.appendChild(el);
         });
@@ -457,14 +430,16 @@
         if (!audioCtx || noiseNode || !isPoweredOn) return;
         const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 0.05;
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 0.1 - 0.05;
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer; noiseNode.loop = true;
-        noiseNode.connect(audioCtx.destination);
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.04;
+        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
         noiseNode.start();
     }
 
-    function stopStaticSound() { if (noiseNode) { noiseNode.stop(); noiseNode = null; } }
+    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
 
     function loopNoise() {
         if (!isPoweredOn) return;
@@ -495,35 +470,29 @@
         if (!isPoweredOn) return;
 
         if (!data.url) {
-            video.style.display = 'none'; youtubeLayer.style.display = 'none';
-            unmuteHint.style.display = 'none';
+            video.style.display = 'none'; document.getElementById('yt-player-container').style.display = 'none';
+            video.pause(); if(ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
             toggleStatic(true); return;
         }
         
         toggleStatic(false); 
-
-        if (data.isYoutube) {
+        
+        if (data.isYT) {
             video.style.display = 'none'; video.pause();
-            youtubeLayer.style.display = 'block';
-            
-            if (currentYtId !== data.url) {
-                currentYtId = data.url;
-                let startAt = 0;
-                if (data.lastUpdated) startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
-                
-                // تشغيل صامت في البداية لضمان العمل التلقائي
-                const embedUrl = `https://www.youtube.com/embed/${data.url}?autoplay=1&mute=1&controls=0&start=${startAt}&rel=0`;
-                youtubeLayer.innerHTML = `<iframe width="100%" height="100%" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
-                unmuteHint.style.display = 'block';
+            document.getElementById('yt-player-container').style.display = 'block';
+            let startAt = Math.floor((Date.now() - data.lastUpdated) / 1000);
+            if (ytPlayer && ytPlayer.loadVideoById) {
+                const current = ytPlayer.getVideoData ? ytPlayer.getVideoData().video_id : "";
+                if(current !== data.url) {
+                    ytPlayer.loadVideoById({ videoId: data.url, startSeconds: startAt > 0 ? startAt : 0 });
+                    ytPlayer.unMute();
+                }
             }
         } else {
-            currentYtId = null;
-            unmuteHint.style.display = 'none';
-            youtubeLayer.style.display = 'none'; youtubeLayer.innerHTML = "";
+            document.getElementById('yt-player-container').style.display = 'none';
             video.style.display = 'block'; 
             if (!video.src.includes(data.url)) loadVideo(data.url);
-            let targetTime = data.currentTime || 0;
-            if (data.isPlaying && data.lastUpdated) targetTime = (Date.now() - data.lastUpdated) / 1000;
+            let targetTime = (Date.now() - data.lastUpdated) / 1000;
             if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); }); 
             else video.pause();
             if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
@@ -545,12 +514,17 @@
 
     syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
 
+    let hls;
     function loadVideo(url) {
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
-            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
+            else { video.src = url; }
         } else { video.src = url; }
     }
+
+    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
+    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
 </script>
 </body>
 </html>
