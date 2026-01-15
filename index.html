@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync Control - Enhanced</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -285,6 +285,7 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
+    let serverTimeOffset = 0; // جديد لمزامنة الوقت بدقة
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -301,6 +302,11 @@
     const auth = firebase.auth();
     const syncRef = db.ref('videoSync');
     const tapesRef = db.ref('tapesLibrary');
+
+    // حساب فرق التوقيت مع سيرفر فايربيس لضمان المزامنة
+    db.ref(".info/serverTimeOffset").on("value", (snap) => {
+        serverTimeOffset = snap.val() || 0;
+    });
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
@@ -334,7 +340,6 @@
 
     function publicEject() {
         userHasInteracted = true;
-        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -373,7 +378,6 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
-                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
@@ -385,7 +389,7 @@
                     currentTime: 0, 
                     isPlaying: true, 
                     adminPresent: isAdmin,
-                    lastUpdated: Date.now() 
+                    lastUpdated: Date.now() + serverTimeOffset
                 });
             };
             shelf.appendChild(el);
@@ -442,7 +446,6 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -450,12 +453,11 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
-                currentTime: video.currentTime,
-                lastUpdated: Date.now() - (video.currentTime * 1000) 
+                currentTime: video.currentTime, 
+                lastUpdated: Date.now() + serverTimeOffset - (video.currentTime * 1000) 
             });
         }
     };
@@ -486,7 +488,7 @@
 
         let targetTime = data.currentTime;
         if (data.isPlaying && data.lastUpdated) {
-            const elapsed = (Date.now() - data.lastUpdated) / 1000;
+            const elapsed = (Date.now() + serverTimeOffset - data.lastUpdated) / 1000;
             targetTime = elapsed > 0 ? elapsed : data.currentTime;
         }
 
@@ -500,7 +502,7 @@
         }
 
         const timeDiff = Math.abs(video.currentTime - targetTime);
-        if (timeDiff > 2) video.currentTime = targetTime;
+        if (timeDiff > 3) video.currentTime = targetTime;
         
         setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
@@ -518,7 +520,7 @@
                 if (!video.paused && !isRemoteUpdate && isAdmin) {
                     syncRef.update({ 
                         currentTime: video.currentTime, 
-                        lastUpdated: Date.now() - (video.currentTime * 1000),
+                        lastUpdated: Date.now() + serverTimeOffset - (video.currentTime * 1000),
                         adminPresent: true 
                     });
                 }
@@ -542,7 +544,7 @@
                 currentTime: 0, 
                 isPlaying: true, 
                 adminPresent: isAdmin,
-                lastUpdated: Date.now() 
+                lastUpdated: Date.now() + serverTimeOffset
             });
             e.target.value = "";
         }
