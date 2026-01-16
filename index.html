@@ -2,67 +2,44 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بث إلى التلفاز</title>
+    <title>مستقبل البث الخاص بي</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a1a;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+        #receiver-container {
+            width: 100%;
+            height: 90vh;
+            border: 2px solid #ff0000;
+            overflow: auto;
+            background: #000;
         }
-        .cast-card {
-            background: #2d2d2d;
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid #444;
-            max-width: 400px;
-        }
-        .icon {
-            font-size: 50px;
-            margin-bottom: 20px;
-        }
-        .btn-cast {
-            background-color: #e50914; /* لون أحمر مثل نيتفلكس */
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: transform 0.2s, background 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-cast:hover {
-            background-color: #b20710;
-            transform: scale(1.05);
-        }
-        p { color: #aaa; font-size: 14px; }
     </style>
 </head>
 <body>
 
-<div class="cast-card">
-    <div class="icon">📺</div>
-    <h2>استقبال البث</h2>
-    <p>اضغط على الزر أدناه لفتح واجهة الاستقبال والربط مع هاتفك</p>
-    
-    <a href="https://cast2tv.app" 
-       onclick="window.open(this.href, 'CastWindow', 'width=1000,height=700'); return false;" 
-       class="btn-cast">
-       بدء الاتصال الآن
-    </a>
-    
-    <p style="margin-top: 20px;">سيفتح الموقع في نافذة مستقلة لضمان عمل البث بنجاح.</p>
-</div>
+    <h2>واجهة البث المباشر</h2>
+    <div id="receiver-container">
+        جاري تحميل واجهة البث...
+    </div>
 
+    <script>
+        // هذه الحيلة تستخدم بروكسي لتجاوز منع الحماية وسحب محتوى الصفحة
+        const proxyUrl = "https://api.allorigins.win/get?url=";
+        const targetUrl = encodeURIComponent("https://cast2tv.app");
+
+        fetch(proxyUrl + targetUrl)
+            .then(response => {
+                if (response.ok) return response.json();
+                throw new Error('Network response was not ok.');
+            })
+            .then(data => {
+                const container = document.getElementById('receiver-container');
+                // حقن محتوى الصفحة داخل الـ Div الخاص بك
+                container.innerHTML = data.contents;
+                
+                // تنبيه: قد تحتاج لتعديل الروابط الداخلية داخل المحتوى المحقون لتعمل الصور والسكربتات
+            })
+            .catch(err => {
+                document.getElementById('receiver-container').innerHTML = "خطأ في جلب الصفحة: " + err;
+            });
+    </script>
 </body>
 </html>
