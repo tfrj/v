@@ -3,111 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>محرك بحث Cast2TV</title>
+    <title>مشغل الروابط المباشر</title>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
     <style>
-        /* إعدادات الصفحة الأساسية */
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden; /* لمنع ظهور شريط تمرير مزدوج */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a1a; /* لون داكن يتناسب مع مواقع الفيديو */
-        }
-
-        /* شريط البحث العلوي */
-        .search-header {
-            height: 80px;
-            background: #252525;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-bottom: 2px solid #333;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            position: relative;
-            z-index: 10;
-        }
-
-        .search-container {
-            display: flex;
-            width: 90%;
-            max-width: 600px;
-            background: #333;
-            border-radius: 30px;
-            padding: 5px 15px;
-            border: 1px solid #444;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            background: transparent;
-            border: none;
-            outline: none;
-            color: white;
-            padding: 10px;
-            font-size: 16px;
-            text-align: right;
-        }
-
-        .search-btn {
-            background: #e50914; /* لون أحمر مثل مواقع الأفلام */
-            color: white;
-            border: none;
-            padding: 8px 25px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.3s;
-        }
-
-        .search-btn:hover {
-            background: #ff0a16;
-            transform: scale(1.05);
-        }
-
-        /* نافذة عرض الموقع (Iframe) */
-        .content-area {
-            width: 100%;
-            height: calc(100vh - 80px); /* المساحة المتبقية من الشاشة */
-            border: none;
-            background: white;
-        }
+        body { font-family: sans-serif; background-color: #121212; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .input-section { width: 100%; max-width: 800px; margin-bottom: 20px; display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 12px; border-radius: 5px; border: none; outline: none; font-size: 16px; }
+        button { padding: 12px 25px; background-color: #ff0000; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #cc0000; }
+        #dplayer { width: 100%; max-width: 800px; height: 450px; border-radius: 10px; overflow: hidden; background: #000; }
     </style>
 </head>
 <body>
 
-    <header class="search-header">
-        <div class="search-container">
-            <input type="text" id="searchInput" placeholder="ابحث عن أفلام أو مسلسلات في Cast2TV...">
-            <button class="search-btn" onclick="performSearch()">بحث</button>
-        </div>
-    </header>
+    <h2>مشغل الفيديو السريع</h2>
 
-    <iframe id="siteFrame" class="content-area" src="https://cast2tv.app"></iframe>
+    <div class="input-section">
+        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو هنا (MP4, MKV, M3U8...)" />
+        <button onclick="playVideo()">تشغيل</button>
+    </div>
+
+    <div id="dplayer"></div>
 
     <script>
-        function performSearch() {
-            const query = document.getElementById('searchInput').value;
-            const frame = document.getElementById('siteFrame');
-
-            if (query.trim() !== "") {
-                // برمجة الرابط ليفتح صفحة البحث الخاصة بالموقع مباشرة
-                // ملاحظة: قمت باستخدام صيغة البحث الشائعة للمواقع
-                const searchUrl = `https://cast2tv.app/?s=${encodeURIComponent(query)}`;
-                
-                // تحديث الإطار السفلي بالنتائج الجديدة
-                frame.src = searchUrl;
-            } else {
-                alert("يرجى كتابة اسم الفيلم أو المسلسل");
-            }
-        }
-
-        // تشغيل البحث عند الضغط على Enter
-        document.getElementById('searchInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                performSearch();
-            }
+        // إعداد المشغل في البداية بشكل فارغ
+        let dp = new DPlayer({
+            container: document.getElementById('dplayer'),
+            video: { url: '' }
         });
+
+        function playVideo() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) {
+                alert("من فضلك الصق الرابط أولاً");
+                return;
+            }
+
+            // إعادة بناء المشغل بالرابط الجديد
+            dp.switchVideo({
+                url: url,
+                type: 'auto'
+            });
+            
+            dp.play();
+        }
     </script>
 
 </body>
