@@ -2,38 +2,44 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>TFRJ - مستقبل البث المتطور</title>
+    <title>TFRJ - Pro Receiver</title>
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.2.2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-        #setup { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
+        #setup { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; color: #fff; text-align: center; }
         #qrcode { background: white; padding: 15px; border-radius: 10px; margin: 20px; }
-        video { width: 100%; height: 100%; display: none; background: #000; }
+        .video-js { width: 100% !important; height: 100vh !important; display: none; }
+        .vjs-big-play-button { display: none !important; } /* تشغيل تلقائي */
     </style>
 </head>
 <body>
 
     <div id="setup">
-        <h1>TFRJ TV RECEIVER</h1>
+        <h1>TFRJ PRO RECEIVER</h1>
         <div id="qrcode"></div>
-        <p>امسح الكود للتحكم - يدعم IPTV</p>
-        <div id="status" style="color:#0f0">جاري الاتصال...</div>
+        <p>امسح الكود للتحكم - يدعم IPTV و MP4</p>
+        <div id="status" style="color:#0f0">انتظار الاتصال...</div>
     </div>
 
-    <video id="video-player" controls autoplay playsinline></video>
+    <video id="main-player" class="video-js vjs-default-skin" controls preload="auto" playsinline></video>
 
     <script>
-        const video = document.getElementById('video-player');
         const setupUI = document.getElementById('setup');
+        const playerElement = document.getElementById('main-player');
         const channelName = 'TFRJ_' + Math.random().toString(36).substr(2, 5);
         
-        const pubnub = new PubNub({ publishKey: 'demo', subscribeKey: 'demo', userId: 'receiver' });
+        // إعداد المشغل
+        const player = videojs('main-player', {
+            autoplay: true,
+            fluid: true
+        });
 
+        const pubnub = new PubNub({ publishKey: 'demo', subscribeKey: 'demo', userId: 'receiver' });
         const controlUrl = `https://tfrj.github.io/v/Control.html?ch=${channelName}`;
         new QRCode(document.getElementById("qrcode"), { text: controlUrl, width: 250, height: 250 });
-        document.getElementById('status').innerText = "القناة جاهزة: " + channelName;
 
         pubnub.subscribe({ channels: [channelName] });
         pubnub.addListener({
@@ -41,17 +47,14 @@
                 if (s.message.type === 'play') {
                     const url = s.message.url;
                     setupUI.style.display = 'none';
-                    video.style.display = 'block';
+                    playerElement.style.display = 'block';
 
-                    if (Hls.isSupported() && url.includes('m3u8')) {
-                        const hls = new Hls();
-                        hls.loadSource(url);
-                        hls.attachMedia(video);
-                        hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
-                    } else {
-                        video.src = url;
-                        video.play();
-                    }
+                    // تحديد نوع الفيديو تلقائياً (IPTV أو عادي)
+                    let type = 'video/mp4';
+                    if (url.includes('m3u8')) type = 'application/x-mpegURL';
+
+                    player.src({ src: url, type: type });
+                    player.play();
                 }
             }
         });
