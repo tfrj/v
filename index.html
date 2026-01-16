@@ -1,57 +1,102 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receiver Pro</title>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dplayer@latest/dist/DPlayer.min.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; background: #000; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        #dplayer { width: 100%; height: 100%; }
-        #status { position: absolute; top: 10px; right: 10px; color: white; background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 20px; font-family: sans-serif; z-index: 99; font-size: 12px; }
+    <title>Web Receiver Pro | شاشة الاستقبال</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script> <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* واجهة الانتظار */
+        #waitingScreen {
+            text-align: center;
+            color: white;
+            font-family: sans-serif;
+            transition: opacity 1s ease;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #6c5ce7;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* مشغل الفيديو */
+        video {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .overlay-info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            border-right: 4px solid #6c5ce7;
+        }
     </style>
 </head>
 <body>
-    <div id="status">بانتظار الإشارة...</div>
-    <div id="dplayer"></div>
+
+    <div id="waitingScreen">
+        <div class="loader"></div>
+        <h2>في انتظار استلام البث...</h2>
+        <p>تأكد من اختيار هذه الشاشة من تطبيق الإرسال</p>
+        <div id="deviceId" style="opacity: 0.5;">ID: --</div>
+    </div>
+
+    <video id="remoteVideo" controls autoplay></video>
+
+    <div class="overlay-info" id="status" style="display: none;">
+        جاري العرض الآن.. 📺
+    </div>
 
     <script>
-        // إعدادات Firebase الخاصة بك
-        const firebaseConfig = {
-            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-            authDomain: "videos-5e336.firebaseapp.com",
-            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-            projectId: "videos-5e336",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-        };
+        const video = document.getElementById('remoteVideo');
+        const waitingScreen = document.getElementById('waitingScreen');
+        const statusOverlay = document.getElementById('status');
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        
-        let dp = new DPlayer({
-            container: document.getElementById('dplayer'),
-            live: true,
-            autoplay: true,
-            video: { url: '', type: 'hls' }
-        });
+        // وظيفة تشغيل الفيديو المستلم
+        function startPlayback(url) {
+            waitingScreen.style.display = 'none';
+            video.style.display = 'block';
+            statusOverlay.style.display = 'block';
 
-        // الاستماع للرابط من Firebase
-        db.ref('videoSync').on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data && data.url) {
-                document.getElementById('status').innerText = "تم استقبال البث 📡";
-                
-                // تحديث المشغل بالرابط الجديد
-                dp.switchVideo({ url: data.url, type: 'hls' });
-                dp.play();
+            if (url.includes('.m3u8')) {
+                if (Hls.isSupported()) {
+                    var hls = new Hls();
+                    hls.loadSource(url);
+                    hls.attachMedia(video);
+                }
+            } else {
+                video.src = url;
             }
-        });
+            video.play();
+        }
 
-        // حل مشكلة كتم الصوت التلقائي في المتصفحات
-        document.body.onclick = () => { dp.play(); };
+        // ملاحظة: هنا تحتاج لربط Socket.io لاستقبال البيانات
+        // هذا الكود تجريبي لمحاكاة الاستقبال بعد 5 ثواني
+        /*
+        setTimeout(() => {
+            startPlayback('https://www.w3schools.com/html/mov_bbb.mp4');
+        }, 5000);
+        */
     </script>
 </body>
 </html>
