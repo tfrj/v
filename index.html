@@ -1,68 +1,43 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFRJ - بث الفيديو</title>
+    <title>TFRJ - Full Control</title>
     <style>
-        body {
-            background-color: #050505;
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            font-family: 'Segoe UI', sans-serif;
-        }
-        .status-card {
-            background: #111;
-            padding: 40px;
-            border-radius: 15px;
-            border: 1px solid #333;
-            text-align: center;
-            box-shadow: 0 0 20px rgba(255,0,0,0.2);
-        }
-        .pulse {
-            width: 20px; height: 20px; background: #ff0000;
-            border-radius: 50%; margin: 20px auto;
-            animation: blink 1.5s infinite;
-        }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-        
-        .btn-launch {
-            background: #e50914; color: white; border: none;
-            padding: 15px 40px; font-size: 20px; font-weight: bold;
-            border-radius: 8px; cursor: pointer; transition: 0.3s;
-        }
-        .btn-launch:hover { background: #ff1e29; transform: translateY(-3px); }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
+        iframe { width: 100%; height: 100vh; border: none; }
     </style>
 </head>
 <body>
 
-    <div class="status-card">
-        <div class="pulse"></div>
-        <h2>مستقبل البث TFRJ</h2>
-        <p style="color: #888;">لضمان استجابة أزرار الاتصال والـ QR Code:</p>
-        
-        <button onclick="openCast()" class="btn-launch">تشغيل واجهة الربط</button>
-        
-        <p style="margin-top: 20px; font-size: 13px;">ملاحظة: ستفتح الواجهة في نافذة مستقلة لضمان عمل "الاستجابة".</p>
-    </div>
+<div id="display"></div>
 
-    <script>
-        function openCast() {
-            // فتح الموقع في نافذة منبثقة بمقاس الشاشة
-            const width = 1000;
-            const height = 800;
-            const left = (screen.width / 2) - (width / 2);
-            const top = (screen.height / 2) - (height / 2);
-            
-            window.open('https://cast2tv.app', 'Cast2tv', 
-                `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`);
-        }
-    </script>
+<script>
+    // استخدام بروكسي يكسر حماية الـ CORS تماماً
+    const targetUrl = 'https://cast2tv.app/';
+    const proxy = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+
+    fetch(proxy)
+    .then(r => r.text())
+    .then(html => {
+        const container = document.getElementById('display');
+        const iframe = document.createElement('iframe');
+        iframe.style.width = "100%";
+        iframe.style.height = "100vh";
+        // السماح بجميع الصلاحيات للأزرار والسكربتات
+        iframe.setAttribute('sandbox', 'allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts');
+        iframe.setAttribute('allow', 'display-capture; fullscreen; microphone; camera');
+        
+        container.appendChild(iframe);
+        
+        const doc = iframe.contentWindow.document;
+        doc.open();
+        // حقن قاعدة البيانات الأصلية للموقع لضمان تشغيل السكربتات
+        doc.write(`<base href="${targetUrl}">` + html);
+        doc.close();
+    })
+    .catch(err => console.error("فشل الحقن:", err));
+</script>
 
 </body>
 </html>
