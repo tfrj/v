@@ -2,102 +2,48 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spacetoon Live Sync</title>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محرك بحثي الخاص</title>
     <style>
-        body { margin: 0; background: #000; color: white; font-family: sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .container { width: 100%; max-width: 900px; position: relative; }
-        video { width: 100%; aspect-ratio: 16/9; background: #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
-        .live-label { position: absolute; top: 15px; right: 15px; background: red; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 5; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
-        .play-icon { font-size: 50px; margin-bottom: 10px; }
+        /* تنسيق خلفية الصفحة */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 50px;
+            margin: 0;
+        }
+
+        /* حاوية البحث لضبط العرض */
+        .search-wrapper {
+            width: 90%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        .header-title {
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            color: #4285F4;
+        }
+
+        /* تحسين مظهر محرك جوجل المخصص */
+        .gcse-search {
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <div class="play-icon">▶️</div>
-        <b>انقر للانضمام للبث المباشر</b>
-        <small style="color: #888; margin-top: 5px;">سيتم مزامنة الوقت تلقائياً</small>
+    <div class="search-wrapper">
+        <h1 class="header-title">مرحباً بك في صفحة بحثي</h1>
+        <p>اكتب ما تريد البحث عنه بالأسفل وستظهر النتائج هنا مباشرة:</p>
+
+        <script async src="https://cse.google.com/cse.js?cx=54775f94690834d5a"></script>
+        <div class="gcse-search"></div>
     </div>
 
-    <div class="container">
-        <div class="live-label">بث مباشر</div>
-        <video id="video" playsinline></video>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-        // إعدادات Firebase الخاصة بك
-        const firebaseConfig = {
-            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-            projectId: "videos-5e336",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const syncRef = ref(db, 'spacetoon_live/status');
-
-        const video = document.getElementById('video');
-        const overlay = document.getElementById('overlay');
-        const hlsUrl = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264';
-
-        // إعداد مشغل HLS
-        if (Hls.isSupported()) {
-            const hls = new Hls();
-            hls.loadSource(hlsUrl);
-            hls.attachMedia(video);
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = hlsUrl; // دعم آيفون (Safari)
-        }
-
-        let remoteSyncing = false;
-
-        // إرسال الحالة (عندما يضغط أحد "إيقاف" أو "تشغيل")
-        const updateFirebase = () => {
-            if (remoteSyncing) return;
-            set(syncRef, {
-                playing: !video.paused,
-                timestamp: Date.now()
-            });
-        };
-
-        video.onplay = updateFirebase;
-        video.onpause = updateFirebase;
-
-        // استقبال الحالة من Firebase
-        onValue(syncRef, (snap) => {
-            const data = snap.val();
-            if (!data) return;
-
-            remoteSyncing = true;
-            if (data.playing && video.paused) {
-                video.play().catch(() => {});
-            } else if (!data.playing && !video.paused) {
-                video.pause();
-            }
-            
-            // في البث المباشر، نجبر المشغل على القفز للنقطة الحية (Live Edge)
-            // إذا كان الفارق عن "نهاية البث" أكثر من 5 ثوانٍ
-            if (video.duration && Math.abs(video.currentTime - video.duration) > 5) {
-                video.currentTime = video.duration;
-            }
-
-            setTimeout(() => { remoteSyncing = false; }, 500);
-        });
-
-        // تشغيل عند النقر (ضروري لسياسة المتصفح)
-        overlay.onclick = () => {
-            overlay.style.display = 'none';
-            video.play();
-            // القفز لأحدث لحظة في البث فور الدخول
-            if(video.duration) video.currentTime = video.duration;
-        };
-    </script>
 </body>
 </html>
