@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control</title>
+    <title>VHS Sync Control - YouTube Support</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         :root { 
@@ -55,33 +56,23 @@
             justify-content: center; 
         }
 
-        /* --- التأثير الجديد المستوحى من الفيديو --- */
+        /* إضافة تأثير الخطوط (Scanlines) لتعزيز شكل الـ VHS */
+        .screen-border::after {
+            content: " ";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            z-index: 10;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
         #tap-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             z-index: 100;
-            transition: opacity 0.3s ease;
-        }
-
-        /* تأثير الومضة والخطوط عند التشغيل */
-        .crt-startup-line {
-            position: absolute;
-            width: 100%;
-            height: 2px;
-            background: #fff;
-            box-shadow: 0 0 10px #fff;
-            top: 50%;
-            left: 0;
-            z-index: 101;
-            transform: scaleX(0);
-            opacity: 0;
-        }
-
-        @keyframes crt-on-vfx {
-            0% { transform: scaleX(0); opacity: 0; }
-            50% { transform: scaleX(1.2); opacity: 1; height: 4px; }
-            100% { transform: scaleX(1); opacity: 0; height: 100%; }
         }
 
         #noise-canvas {
@@ -89,10 +80,10 @@
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1;
             opacity: 0.9;
-            display: none; 
+            display: none;
         }
 
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
+        video, #yt-player { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; border: none; }
 
         .tv-controls {
             display: flex;
@@ -249,9 +240,9 @@
     <div class="tv-unit">
         <div class="screen-border">
             <div id="tap-overlay"></div>
-            <div id="startupLine" class="crt-startup-line"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
+            <div id="yt-player"></div>
         </div>
         
         <div class="tv-controls">
@@ -275,7 +266,7 @@
         
         <div id="adminSection">
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
-            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
+            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK OR YOUTUBE URL">
             
             <div class="admin-tape-controls">
                 <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
@@ -303,13 +294,15 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('tap-overlay');
     const powerBtn = document.getElementById('powerBtn');
-    const startupLine = document.getElementById('startupLine');
-
     let noiseID, audioCtx, noiseNode, isAdmin = false;
     let isPoweredOn = false;
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
+    
+    // متغيرات يوتيوب
+    let ytPlayer;
+    let currentMode = 'native'; // 'native' or 'youtube'
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -330,6 +323,40 @@
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
 
+    // تجهيز يوتيوب
+    function onYouTubeIframeAPIReady() {
+        ytPlayer = new YT.Player('yt-player', {
+            height: '100%',
+            width: '100%',
+            playerVars: { 'autoplay': 0, 'controls': 1, 'rel': 0, 'modestbranding': 1, 'playsinline': 1 },
+            events: {
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerStateChange(event) {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            if (globalAdminPresent && !isAdmin) return;
+            
+            if (event.data == YT.PlayerState.PLAYING) {
+                syncRef.update({ 
+                    isPlaying: true, 
+                    currentTime: ytPlayer.getCurrentTime(),
+                    lastUpdated: Date.now() - (ytPlayer.getCurrentTime() * 1000) 
+                });
+            } else if (event.data == YT.PlayerState.PAUSED) {
+                syncRef.update({ isPlaying: false, currentTime: ytPlayer.getCurrentTime() });
+            }
+        }
+    }
+
+    function getYoutubeID(url) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
     function handlePowerClick() {
         userHasInteracted = true;
         if (globalAdminPresent && !isAdmin) {
@@ -340,28 +367,20 @@
         syncRef.update({ tvPower: nextState });
     }
 
-    // --- دالة التشغيل المحسنة ---
     function applyPowerState(state) {
-        if (isPoweredOn === state) return;
         isPoweredOn = state;
-        
         if (isPoweredOn) {
-            // تأثير الومضة عند البدء
-            startupLine.style.animation = 'crt-on-vfx 0.5s ease-out forwards';
             powerBtn.classList.add('active');
-            
-            setTimeout(() => {
-                overlay.style.display = 'none';
-                startupLine.style.animation = 'none';
-                initAudio();
-                syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
-            }, 400);
+            overlay.style.display = 'none';
+            initAudio();
+            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
         } else {
-            // إغلاق سريع
+            powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
+            document.getElementById('yt-player').style.display = 'none';
             video.pause();
-            powerBtn.classList.remove('active');
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
@@ -412,7 +431,7 @@
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                video.play().catch(() => {}); 
+                
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -430,10 +449,42 @@
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    function startStaticSound() { return; }
-    function stopStaticSound() { return; }
-    function loopNoise() { return; }
-    function toggleStatic(show) { canvas.style.display = 'none'; }
+    function startStaticSound() {
+        if (!audioCtx || noiseNode || !isPoweredOn) return;
+        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = buffer; noiseNode.loop = true;
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.04;
+        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
+        noiseNode.start();
+    }
+
+    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
+
+    function loopNoise() {
+        if (!isPoweredOn) return;
+        canvas.width = 200; canvas.height = 150;
+        const idata = ctx.createImageData(canvas.width, canvas.height);
+        const b32 = new Uint32Array(idata.data.buffer);
+        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
+        ctx.putImageData(idata, 0, 0);
+        noiseID = requestAnimationFrame(loopNoise);
+    }
+
+    function toggleStatic(show) {
+        if (show && isPoweredOn) {
+            canvas.style.display = 'block';
+            if (!noiseID) loopNoise();
+            stopStaticSound(); startStaticSound();
+        } else {
+            canvas.style.display = 'none';
+            cancelAnimationFrame(noiseID); noiseID = null;
+            stopStaticSound();
+        }
+    }
 
     video.onended = () => {
         if (!isRemoteUpdate && isPoweredOn) {
@@ -442,14 +493,14 @@
     };
 
     video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted && currentMode === 'native') {
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
     };
 
     video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+        if (!isRemoteUpdate && isPoweredOn && userHasInteracted && currentMode === 'native') {
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
@@ -472,15 +523,30 @@
 
         if (!data.url) {
             video.style.display = 'none'; video.pause();
+            document.getElementById('yt-player').style.display = 'none';
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(true); return;
         }
         
         isRemoteUpdate = true;
-        video.style.display = 'block'; 
-        toggleStatic(false); 
+        const ytID = getYoutubeID(data.url);
         
-        if (!video.src.includes(data.url)) {
-            loadVideo(data.url);
+        if (ytID) {
+            currentMode = 'youtube';
+            video.style.display = 'none'; video.pause();
+            document.getElementById('yt-player').style.display = 'block';
+            toggleStatic(false);
+            
+            if (ytPlayer && ytPlayer.getVideoData && ytPlayer.getVideoData().video_id !== ytID) {
+                ytPlayer.loadVideoById(ytID, data.currentTime || 0);
+            }
+        } else {
+            currentMode = 'native';
+            document.getElementById('yt-player').style.display = 'none';
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            video.style.display = 'block'; 
+            toggleStatic(false); 
+            if (!video.src.includes(data.url)) loadVideo(data.url);
         }
 
         let targetTime = data.currentTime;
@@ -489,19 +555,17 @@
             targetTime = elapsed > 0 ? elapsed : data.currentTime;
         }
 
-        if (data.isPlaying) { 
-            video.play().catch(error => {
-                video.muted = true;
-                video.play();
-            }); 
-        } else { 
-            video.pause(); 
+        if (currentMode === 'native') {
+            if (data.isPlaying) { video.play().catch(() => { video.muted = true; video.play(); }); } 
+            else { video.pause(); }
+            if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+        } else if (currentMode === 'youtube' && ytPlayer && ytPlayer.seekTo) {
+            if (data.isPlaying) { ytPlayer.playVideo(); } 
+            else { ytPlayer.pauseVideo(); }
+            if (Math.abs(ytPlayer.getCurrentTime() - targetTime) > 2) ytPlayer.seekTo(targetTime, true);
         }
-
-        const timeDiff = Math.abs(video.currentTime - targetTime);
-        if (timeDiff > 2) video.currentTime = targetTime;
         
-        setTimeout(() => { isRemoteUpdate = false; }, 200);
+        setTimeout(() => { isRemoteUpdate = false; }, 500);
     }
 
     auth.onAuthStateChanged(user => {
@@ -510,22 +574,24 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
-            
             syncRef.update({ adminPresent: true });
 
-            video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() - (video.currentTime * 1000),
-                        adminPresent: true 
-                    });
+            setInterval(() => {
+                if (isPoweredOn && !isRemoteUpdate && isAdmin) {
+                    let curTime = currentMode === 'native' ? video.currentTime : (ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0);
+                    let isPlaying = currentMode === 'native' ? !video.paused : (ytPlayer.getPlayerState ? ytPlayer.getPlayerState() === 1 : false);
+                    
+                    if (isPlaying) {
+                        syncRef.update({ 
+                            currentTime: curTime, 
+                            lastUpdated: Date.now() - (curTime * 1000),
+                            adminPresent: true 
+                        });
+                    }
                 }
-            };
+            }, 5000);
 
-            window.addEventListener('beforeunload', () => {
-                syncRef.update({ adminPresent: false });
-            });
+            window.addEventListener('beforeunload', () => { syncRef.update({ adminPresent: false }); });
         }
     });
 
@@ -535,7 +601,7 @@
 
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
-        if (val.startsWith('http')) {
+        if (val.length > 5) {
             syncRef.update({ 
                 url: val, 
                 currentTime: 0, 
