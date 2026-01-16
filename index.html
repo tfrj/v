@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل الفيديو المبسط</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #000;
+            color: #fff;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .card {
+            background: #1e1e1e;
+            width: 100%;
+            max-width: 500px;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        h2 { margin-top: 0; color: #00ccff; font-size: 1.2rem; }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #2a2a2a;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #00ccff;
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .video-container {
+            width: 100%;
+            max-width: 500px;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            display: block;
+        }
+        .status {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>🚀 مشغل الفيديو السريع</h2>
+        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو هنا مباشرة...">
+        <button onclick="playVideo()">تشغيل الآن</button>
+        <div id="status" class="status">جاهز للاستخدام..</div>
+    </div>
+
+    <div class="video-container">
+        <video id="mainPlayer" controls autoplay playsinline>
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <script>
+        function playVideo() {
+            const url = document.getElementById('videoUrl').value.trim();
+            const video = document.getElementById('mainPlayer');
+            const status = document.getElementById('status');
+
+            if (!url) {
+                alert("الرجاء وضع رابط فيديو!");
+                return;
+            }
+
+            status.innerText = "جاري التحميل...";
+
+            // تحديث مصدر الفيديو
+            video.src = url;
+            
+            // محاولة التشغيل
+            video.load();
+            video.play().then(() => {
+                status.innerText = "يتم التشغيل الآن ✅";
+            }).catch(error => {
+                status.innerText = "خطأ: تأكد من صحة الرابط أو صيغة الفيديو.";
+                console.error("Playback error:", error);
+            });
+        }
+    </script>
+
+</body>
+</html>
