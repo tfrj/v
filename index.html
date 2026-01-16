@@ -3,105 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart TV - SpaceToon Live</title>
+    <title>مشغل IPTV الذكي</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        body, html {
-            margin: 0; padding: 0; height: 100%;
-            background-color: #000; overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        body { background-color: #121212; color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        header { background: #1f1f1f; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; }
+        
+        .upload-btn { background: #28a745; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.3s; }
+        .upload-btn:hover { background: #218838; }
+        #fileInput { display: none; }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        .playlist { width: 300px; background: #1f1f1f; overflow-y: auto; border-left: 1px solid #333; }
+        .channel-item { padding: 12px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-size: 14px; }
+        .channel-item:hover { background: #333; }
+        .channel-item.active { background: #007bff; }
+
+        .video-section { flex: 1; display: flex; flex-direction: column; background: #000; position: relative; }
+        video { width: 100%; height: 100%; background: #000; }
+
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            .playlist { width: 100%; height: 40% ; order: 2; }
         }
-
-        /* حاوية الفيديو لتملأ الشاشة */
-        .video-wrapper {
-            position: relative; width: 100%; height: 100vh;
-            display: flex; align-items: center; justify-content: center;
-        }
-
-        video {
-            width: 100%; height: 100%; object-fit: contain;
-            background: black;
-        }
-
-        /* واجهة التحكم العلوية (تظهر عند الحركة) */
-        .overlay-ui {
-            position: absolute; top: 0; left: 0; right: 0;
-            padding: 30px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-            display: flex; justify-content: space-between; align-items: center;
-            opacity: 0; transition: opacity 0.5s;
-        }
-
-        .video-wrapper:hover .overlay-ui { opacity: 1; }
-
-        .channel-info { display: flex; align-items: center; gap: 15px; }
-        .live-badge {
-            background: red; color: white; padding: 5px 12px;
-            border-radius: 5px; font-weight: bold; font-size: 0.8rem;
-            animation: blink 1s infinite;
-        }
-
-        @keyframes blink { 50% { opacity: 0.5; } }
-
-        .logo-text { font-size: 1.5rem; font-weight: bold; color: #ffcc00; }
-
-        /* أزرار سريعة في الأسفل */
-        .bottom-dock {
-            position: absolute; bottom: 30px; left: 50%;
-            transform: translateX(-50%); display: flex; gap: 20px;
-            opacity: 0; transition: opacity 0.5s;
-        }
-
-        .video-wrapper:hover .bottom-dock { opacity: 1; }
-
-        .btn {
-            background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.3); color: white;
-            padding: 12px 25px; border-radius: 50px; cursor: pointer;
-            font-size: 1rem; transition: 0.3s;
-        }
-
-        .btn:hover { background: #ffcc00; color: black; transform: scale(1.1); }
     </style>
 </head>
 <body>
 
-    <div class="video-wrapper">
-        <video id="tv-player" controls autoplay playsinline title="SpaceToon Live">
-            <source src="http://easyip.xyz:80/tAw5b9ue/uNB58Bh/118096" type="application/x-mpegURL">
-            متصفحك لا يدعم بث HLS. يرجى استخدام متصفح سفاري.
-        </video>
+<header>
+    <strong>مشغل القنوات الخاص بي</strong>
+    <label for="fileInput" class="upload-btn">➕ أضف ملف M3U</label>
+    <input type="file" id="fileInput" accept=".m3u,.m3u8">
+</header>
 
-        <div class="overlay-ui">
-            <div class="channel-info">
-                <div class="live-badge">مباشر • LIVE</div>
-                <div class="logo-text">SpaceToon TV</div>
-            </div>
-            <div id="clock" style="font-size: 1.2rem;">00:00</div>
-        </div>
-
-        <div class="bottom-dock">
-            <button class="btn" onclick="toggleFullScreen()">ملء الشاشة 📺</button>
-            <button class="btn" onclick="location.reload()">تحديث البث 🔄</button>
-        </div>
+<div class="main-container">
+    <div class="video-section">
+        <video id="video" controls></video>
     </div>
 
-    <script>
-        // تحديث الساعة
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'});
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
+    <div class="playlist" id="playlist">
+        <div style="padding: 20px; color: #888; text-align: center;">ارفع ملف القنوات للبدء</div>
+    </div>
+</div>
 
-        // وظيفة ملء الشاشة
-        function toggleFullScreen() {
-            const video = document.getElementById('tv-player');
-            if (video.requestFullscreen) {
-                video.requestFullscreen();
-            } else if (video.webkitEnterFullscreen) { // لسفاري على iOS
-                video.webkitEnterFullscreen();
+<script>
+    const video = document.getElementById('video');
+    const playlistDiv = document.getElementById('playlist');
+    const fileInput = document.getElementById('fileInput');
+    let hls = new Hls();
+
+    // 1. الاستماع لرفع الملف
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            parseM3U(event.target.result);
+        };
+        reader.readAsText(file);
+    });
+
+    // 2. تحليل ملف M3U واستخراج القنوات
+    function parseM3U(content) {
+        const lines = content.split('\n');
+        const channels = [];
+        let currentName = "";
+
+        lines.forEach(line => {
+            line = line.trim();
+            if (line.startsWith('#EXTINF:')) {
+                // استخراج اسم القناة بعد الفاصلة
+                currentName = line.split(',')[1] || "قناة غير معروفة";
+            } else if (line.startsWith('http')) {
+                // الرابط يأتي بعد سطر المعلومات
+                channels.push({ name: currentName, url: line });
             }
+        });
+
+        renderPlaylist(channels);
+    }
+
+    // 3. عرض القنوات في القائمة الجانبية
+    function renderPlaylist(channels) {
+        playlistDiv.innerHTML = ""; // مسح القائمة الحالية
+        
+        channels.forEach((channel, index) => {
+            const item = document.createElement('div');
+            item.className = 'channel-item';
+            item.innerText = channel.name;
+            item.onclick = () => playChannel(channel.url, item);
+            playlistDiv.appendChild(item);
+
+            if (index === 0) playChannel(channel.url, item);
+        });
+    }
+
+    // 4. تشغيل القناة المختارة
+    function playChannel(url, element) {
+        document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+        element.classList.add('active');
+
+        if (Hls.isSupported()) {
+            hls.destroy();
+            hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url;
+            video.play();
         }
-    </script>
+    }
+</script>
+
 </body>
 </html>
