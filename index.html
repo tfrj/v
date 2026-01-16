@@ -3,48 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل IPTV الذكي</title>
+    <title>مشغل IPTV الشامل</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        body { background-color: #121212; color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root { --primary-color: #007bff; --success-color: #28a745; --bg-dark: #121212; --panel-dark: #1f1f1f; }
+        body { background-color: var(--bg-dark); color: white; font-family: system-ui, -apple-system, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        header { background: #1f1f1f; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; }
+        header { background: var(--panel-dark); padding: 10px 15px; border-bottom: 2px solid #333; }
+        .controls-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: center; }
         
-        .upload-btn { background: #28a745; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.3s; }
-        .upload-btn:hover { background: #218838; }
+        input[type="text"] { flex: 1; min-width: 200px; padding: 10px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
+        input[type="text"]:focus { border-color: var(--primary-color); }
+
+        .btn { padding: 10px 18px; border-radius: 5px; cursor: pointer; border: none; font-weight: bold; font-size: 14px; transition: 0.2s; color: white; }
+        .btn-play { background: var(--primary-color); }
+        .btn-upload { background: var(--success-color); }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
         #fileInput { display: none; }
 
         .main-container { display: flex; flex: 1; overflow: hidden; }
-        
-        .playlist { width: 300px; background: #1f1f1f; overflow-y: auto; border-left: 1px solid #333; }
-        .channel-item { padding: 12px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-size: 14px; }
-        .channel-item:hover { background: #333; }
-        .channel-item.active { background: #007bff; }
+        .video-section { flex: 1; background: #000; display: flex; align-items: center; }
+        video { width: 100%; height: 100%; object-fit: contain; }
 
-        .video-section { flex: 1; display: flex; flex-direction: column; background: #000; position: relative; }
-        video { width: 100%; height: 100%; background: #000; }
+        .playlist { width: 280px; background: var(--panel-dark); overflow-y: auto; border-left: 1px solid #333; }
+        .channel-item { padding: 12px 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-size: 14px; }
+        .channel-item:hover { background: #333; }
+        .channel-item.active { background: var(--primary-color); border-right: 4px solid #fff; }
 
         @media (max-width: 768px) {
             .main-container { flex-direction: column; }
-            .playlist { width: 100%; height: 40% ; order: 2; }
+            .playlist { width: 100%; height: 35%; order: 2; border-left: none; border-top: 1px solid #333; }
+            input[type="text"] { width: 100%; }
         }
     </style>
 </head>
 <body>
 
 <header>
-    <strong>مشغل القنوات الخاص بي</strong>
-    <label for="fileInput" class="upload-btn">➕ أضف ملف M3U</label>
-    <input type="file" id="fileInput" accept=".m3u,.m3u8">
+    <div class="controls-row">
+        <input type="text" id="directUrl" placeholder="أدخل أو الصق رابط البث (m3u8)...">
+        <button class="btn btn-play" onclick="playDirectUrl()">تشغيل الرابط</button>
+        
+        <label for="fileInput" class="btn btn-upload">📁 رفع ملف M3U</label>
+        <input type="file" id="fileInput" accept=".m3u,.m3u8">
+    </div>
 </header>
 
 <div class="main-container">
     <div class="video-section">
         <video id="video" controls></video>
     </div>
-
     <div class="playlist" id="playlist">
-        <div style="padding: 20px; color: #888; text-align: center;">ارفع ملف القنوات للبدء</div>
+        <div style="padding: 20px; color: #888; text-align: center;">القائمة فارغة.. ارفع ملفاً أو الصق رابطاً</div>
     </div>
 </div>
 
@@ -52,66 +62,72 @@
     const video = document.getElementById('video');
     const playlistDiv = document.getElementById('playlist');
     const fileInput = document.getElementById('fileInput');
+    const directUrlInput = document.getElementById('directUrl');
     let hls = new Hls();
 
-    // 1. الاستماع لرفع الملف
+    // تشغيل رابط مباشر من الخانة
+    function playDirectUrl() {
+        const url = directUrlInput.value.trim();
+        if (url) {
+            playChannel(url, null);
+            // تصفية الاختيار من القائمة إذا كان موجوداً
+            document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+        } else {
+            alert("الرجاء إدخال رابط أولاً");
+        }
+    }
+
+    // معالجة ملف M3U المرفوع
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
-        reader.onload = function(event) {
-            parseM3U(event.target.result);
-        };
+        reader.onload = e => parseM3U(e.target.result);
         reader.readAsText(file);
     });
 
-    // 2. تحليل ملف M3U واستخراج القنوات
     function parseM3U(content) {
         const lines = content.split('\n');
         const channels = [];
         let currentName = "";
-
         lines.forEach(line => {
             line = line.trim();
             if (line.startsWith('#EXTINF:')) {
-                // استخراج اسم القناة بعد الفاصلة
                 currentName = line.split(',')[1] || "قناة غير معروفة";
             } else if (line.startsWith('http')) {
-                // الرابط يأتي بعد سطر المعلومات
                 channels.push({ name: currentName, url: line });
             }
         });
-
         renderPlaylist(channels);
     }
 
-    // 3. عرض القنوات في القائمة الجانبية
     function renderPlaylist(channels) {
-        playlistDiv.innerHTML = ""; // مسح القائمة الحالية
-        
+        playlistDiv.innerHTML = "";
         channels.forEach((channel, index) => {
             const item = document.createElement('div');
             item.className = 'channel-item';
             item.innerText = channel.name;
-            item.onclick = () => playChannel(channel.url, item);
+            item.onclick = () => {
+                playChannel(channel.url, item);
+                directUrlInput.value = channel.url; // عرض الرابط في الخانة للتوضيح
+            };
             playlistDiv.appendChild(item);
-
             if (index === 0) playChannel(channel.url, item);
         });
     }
 
-    // 4. تشغيل القناة المختارة
     function playChannel(url, element) {
-        document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
-        element.classList.add('active');
+        if (element) {
+            document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+            element.classList.add('active');
+        }
 
         if (Hls.isSupported()) {
             hls.destroy();
             hls = new Hls();
             hls.loadSource(url);
             hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(e => console.log("Auto-play blocked")));
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url;
             video.play();
