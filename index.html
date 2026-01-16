@@ -1,45 +1,37 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>مستقبل البث الخاص بي</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مستقبل البث المباشر</title>
     <style>
-        #receiver-container {
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+        .wrapper {
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            display: flex; flex-direction: column;
+        }
+        .header { background: #1a1a1a; color: white; text-align: center; padding: 10px; font-size: 18px; }
+        
+        /* ضبط الحاوية لتملأ الشاشة */
+        #cast-frame {
             width: 100%;
-            height: 90vh;
-            border: 2px solid #ff0000;
-            overflow: auto;
-            background: #000;
+            height: 100%;
+            border: none;
         }
     </style>
 </head>
 <body>
 
-    <h2>واجهة البث المباشر</h2>
-    <div id="receiver-container">
-        جاري تحميل واجهة البث...
-    </div>
+<div class="wrapper">
+    <div class="header">واجهة البث المباشر - TFRJ</div>
+    
+    <object id="cast-frame" data="https://cast2tv.app/" type="text/html">
+        <p>للأسف متصفحك يمنع العرض المباشر. 
+           <a href="https://cast2tv.app/" style="color: yellow;">اضغط هنا للفتح في صفحة مستقلة</a>
+        </p>
+    </object>
+</div>
 
-    <script>
-        // هذه الحيلة تستخدم بروكسي لتجاوز منع الحماية وسحب محتوى الصفحة
-        const proxyUrl = "https://api.allorigins.win/get?url=";
-        const targetUrl = encodeURIComponent("https://cast2tv.app");
-
-        fetch(proxyUrl + targetUrl)
-            .then(response => {
-                if (response.ok) return response.json();
-                throw new Error('Network response was not ok.');
-            })
-            .then(data => {
-                const container = document.getElementById('receiver-container');
-                // حقن محتوى الصفحة داخل الـ Div الخاص بك
-                container.innerHTML = data.contents;
-                
-                // تنبيه: قد تحتاج لتعديل الروابط الداخلية داخل المحتوى المحقون لتعمل الصور والسكربتات
-            })
-            .catch(err => {
-                document.getElementById('receiver-container').innerHTML = "خطأ في جلب الصفحة: " + err;
-            });
-    </script>
 </body>
 </html>
