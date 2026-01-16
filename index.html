@@ -2,44 +2,16 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>TFRJ - Receiver</title>
+    <title>TFRJ - Fix</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
-        #viewer { width: 100%; height: 100vh; border: none; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+        /* استخدام الـ Embed كبديل أخير لأنه أحياناً يهرب من قيود الـ Iframe */
+        embed { width: 100%; height: 100vh; }
     </style>
 </head>
 <body>
 
-<div id="container"></div>
-
-<script>
-    // الرابط الذي تريد جلب محتواه
-    const targetUrl = 'https://cast2tv.app';
-    
-    // استخدام بروكسي لتجاوز قيود المتصفح
-    fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`)
-    .then(response => {
-        if (response.ok) return response.json();
-        throw new Error('Network error');
-    })
-    .then(data => {
-        const container = document.getElementById('container');
-        // إنشاء إطار وهمي وحقن المحتوى فيه
-        const iframe = document.createElement('iframe');
-        iframe.id = 'viewer';
-        container.appendChild(iframe);
-        
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        // إضافة وسم base لضمان تحميل الصور والسكربتات من الموقع الأصلي
-        doc.write(`<base href="${targetUrl}/">` + data.contents);
-        doc.close();
-    })
-    .catch(err => {
-        console.error('فشل جلب الصفحة:', err);
-        container.innerHTML = '<h2 style="color:white; text-align:center;">خطأ في الاتصال، حاول تحديث الصفحة</h2>';
-    });
-</script>
+    <embed src="https://cast2tv.app/">
 
 </body>
 </html>
