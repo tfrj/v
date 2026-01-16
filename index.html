@@ -2,548 +2,93 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VHS Sync Control Professional</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-
+    <title>محرك بحث جوجل المدمج</title>
     <style>
-        :root { 
-            --target-navy: #151b4e; 
-            --dark-navy: #0d1131;   
-            --pure-white: #ffffff;
-            --power-red: #ff4b2b;
-            --power-green: #2ecc71;
-            --eject-yellow: #f1c40f;
-            --vhs-gray: #2a2a2a;
-            --crt-glow: rgba(18, 16, 16, 0.9);
-            --vhs-accent: #3498db;
-        }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif; }
         
-        body { 
-            background-color: var(--target-navy); 
-            font-family: 'Courier New', monospace; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            margin: 0; 
-            padding: 20px; 
-            color: var(--pure-white);
-            min-height: 100vh;
-            background: radial-gradient(circle at center, var(--target-navy) 0%, var(--dark-navy) 100%);
-            overflow-x: hidden;
-        }
-        
-        .container { width: 100%; max-width: 550px; display: flex; flex-direction: column; gap: 20px; }
-
-        /* TV Unit Styling */
-        .tv-unit { 
-            background: linear-gradient(145deg, #2c2c2c, #1a1a1a); 
-            padding: 20px; 
-            border-radius: 25px; 
-            border: 6px solid #333; 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,255,255,0.1);
-            position: relative;
-        }
-
-        .screen-border { 
-            background: #000; 
-            aspect-ratio: 16 / 9; 
-            position: relative; 
-            overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            border-radius: 15px;
-            box-shadow: inset 0 0 100px rgba(0,0,0,1);
-            border: 10px solid #1a1a1a;
-            outline: 1px solid #444;
-        }
-
-        /* CRT Scanline Effect */
-        .screen-border::before {
-            content: " ";
-            position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
-            z-index: 5;
-            background-size: 100% 4px, 4px 100%;
-            pointer-events: none;
-        }
-
-        @keyframes flicker {
-            0% { opacity: 0.98; }
-            5% { opacity: 0.95; }
-            10% { opacity: 0.9; }
-            15% { opacity: 0.98; }
-            100% { opacity: 1; }
-        }
-        .flicker { animation: flicker 0.15s infinite; }
-
-        #tap-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #0a0a0a;
-            z-index: 100;
+        /* القسم العلوي: منطقة البحث */
+        .search-header {
+            height: 120px;
+            background: #f8f9fa;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
-            color: #333;
+            border-bottom: 2px solid #dfe1e5;
+            z-index: 100;
         }
 
-        .vhs-osd {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            color: #00ff00;
-            font-family: 'Courier New', monospace;
+        .search-bar {
+            display: flex;
+            align-items: center;
+            background: white;
+            border: 1px solid #dfe1e5;
+            border-radius: 24px;
+            padding: 5px 20px;
+            width: 500px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        input[type="text"] {
+            flex: 1;
+            border: none;
+            outline: none;
+            height: 40px;
+            font-size: 16px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 15px;
+            cursor: pointer;
             font-weight: bold;
-            font-size: 20px;
-            z-index: 6;
-            text-shadow: 2px 2px 4px #000;
-            display: none;
-            letter-spacing: 2px;
+            margin-right: 10px;
         }
 
-        #noise-canvas {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-            opacity: 0.9;
-            display: none;
-            pointer-events: none;
-        }
-
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-
-        /* Controls Area */
-        .tv-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 10px 5px 10px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 0 0 15px 15px;
-            margin-top: 10px;
-        }
-        
-        .power-btn, .eject-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
-            border: 2px solid #444;
-            background: linear-gradient(145deg, #333, #1a1a1a);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            box-shadow: 0 4px 0 #000;
-        }
-        
-        .power-btn:active, .eject-btn:active { 
-            transform: translateY(2px); 
-            box-shadow: 0 2px 0 #000;
-        }
-
-        .power-btn.active {
-            border-color: var(--power-green);
-            box-shadow: 0 0 15px rgba(46, 204, 113, 0.4), 0 4px 0 #000;
-        }
-        
-        .power-icon { width: 24px; height: 24px; fill: #555; transition: 0.3s; }
-        .power-btn.active .power-icon { fill: var(--power-green); filter: drop-shadow(0 0 5px var(--power-green)); }
-        .eject-icon { width: 24px; height: 24px; fill: #555; }
-        .eject-btn:hover .eject-icon { fill: var(--eject-yellow); }
-
-        /* Control Panel Form */
-        .control-panel { 
-            background: rgba(0, 0, 0, 0.3); 
-            border: 1px solid rgba(255,255,255,0.1); 
-            border-radius: 15px; 
-            padding: 20px; 
-            backdrop-filter: blur(10px);
-        }
-        
-        input { 
-            width: 100%; 
-            background: #000; 
-            border: 1px solid #444; 
-            color: #00ff00; 
-            padding: 12px; 
-            margin-bottom: 10px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace; 
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
-        button { 
-            flex: 1; padding: 12px; background: #333; border: none; 
-            color: white; cursor: pointer; border-radius: 4px; 
-            font-weight: bold; font-size: 12px; transition: 0.3s;
-        }
-        button:hover { background: #444; }
-
-        /* Library Shelf */
-        .vhs-shelf { 
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-            perspective: 1000px;
-        }
-
-        .vhs-tape {
-            background: #111;
-            height: 60px;
-            position: relative;
-            cursor: pointer;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            border-left: 10px solid var(--vhs-accent);
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
-            transition: 0.3s;
-            overflow: hidden;
-        }
-
-        .vhs-tape::before {
-            content: "";
-            position: absolute;
-            left: 5px; right: 5px; top: 5px; bottom: 5px;
-            background: #eee;
-            border-radius: 2px;
-            z-index: 1;
-        }
-
-        .tape-label {
-            position: relative;
-            z-index: 2;
-            color: #111;
-            font-weight: 900;
-            padding: 0 15px;
-            font-size: 12px;
+        /* القسم السفلي: إطار عرض النتائج */
+        .results-frame {
             width: 100%;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            height: calc(100vh - 120px); /* يأخذ باقي مساحة الشاشة */
+            border: none;
         }
-
-        .vhs-tape:hover {
-            transform: translateY(-5px) rotateX(10deg);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.7);
-        }
-
-        .delete-btn {
-            position: absolute;
-            top: 0; right: 0;
-            background: var(--power-red);
-            width: 20px; height: 20px;
-            z-index: 10;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-        }
-
-        .tracking-box {
-            font-size: 9px;
-            color: #666;
-            text-align: center;
-            line-height: 1.4;
-        }
-
-        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
-        .live-dot { color: var(--power-green); animation: pulse 1.5s infinite; }
     </style>
 </head>
-<body> 
+<body>
 
-<div class="container">
-    <div class="tv-unit">
-        <div class="screen-border flicker">
-            <div id="vhs-osd" class="vhs-osd">▶ PLAY</div>
-            <div id="tap-overlay">
-                <div style="font-size: 30px; font-weight: bold; letter-spacing: 5px;">VHS</div>
-                <div style="margin-top: 5px; font-size: 10px; opacity: 0.5;">NO SIGNAL</div>
-            </div>
-            <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline></video>
-        </div>
-        
-        <div class="tv-controls">
-            <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
-                <svg class="power-icon" viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
-            </div>
-            
-            <div class="tracking-box">
-                <span class="live-dot">●</span> HI-FI STEREO<br>
-                <span id="tracking-text" style="letter-spacing: 1px;">AUTO-TRACKING</span>
-            </div>
-
-            <div class="eject-btn" onclick="publicEject()">
-                <svg class="eject-icon" viewBox="0 0 24 24"><path d="M5 17h14v2H5zm7-12L5.33 15h13.34z"/></svg>
-            </div>
+    <div class="search-header">
+        <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" width="90" style="margin-bottom:10px">
+        <div class="search-bar">
+            <input type="text" id="query" placeholder="اكتب وابحث هنا...">
+            <button onclick="startSearch()">بحث</button>
         </div>
     </div>
 
-    <div class="control-panel">
-        <div id="authSection">
-            <input type="password" id="adminPass" placeholder="كود الوصول (Access Code) _">
-        </div>
-        
-        <div id="adminSection" style="display:none;">
-            <div style="color: var(--power-green); font-size: 11px; margin-bottom: 15px; font-weight: bold;">[إعدادات المسؤول نشطة]</div>
-            <input type="text" id="videoUrl" placeholder="رابط بث مباشر (Direct URL)...">
-            
-            <div style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px;">
-                <input type="text" id="newTapeName" placeholder="اسم الفيلم / الشريط">
-                <input type="text" id="newTapeUrl" placeholder="رابط الفيديو (MP4/HLS)">
-                <button onclick="addNewTape()" style="background: var(--power-green); color: #000;">تسجيل على الشريط 📼</button>
-            </div>
+    <iframe id="googleFrame" class="results-frame" name="googleFrame" src="about:blank"></iframe>
 
-            <div class="btn-group">
-                <button style="background: #431a1a; color: #ff4b2b;" onclick="clearDB()">فرمتة النظام</button>
-                <button onclick="adminLogout()">خروج آمن</button>
-            </div>
-        </div>
-    </div>
-
-    <div style="font-size: 11px; opacity: 0.4; text-align: center; letter-spacing: 3px;">مكتبة الأشرطة المؤرشفة</div>
-    <div class="vhs-shelf" id="vhsShelf"></div>
-</div>
-
-<script>
-    // --- المحرك البرمجي (Firebase & Logic) ---
-    // (تم الإبقاء على نفس منطق البرمجة الخاص بك لضمان المزامنة)
-    
-    const canvas = document.getElementById('noise-canvas');
-    const ctx = canvas.getContext('2d');
-    const video = document.getElementById('video');
-    const overlay = document.getElementById('tap-overlay');
-    const powerBtn = document.getElementById('powerBtn');
-    const osd = document.getElementById('vhs-osd');
-    let noiseID, audioCtx, noiseNode, isAdmin = false;
-    let isPoweredOn = false;
-    let isRemoteUpdate = false;
-    let globalAdminPresent = false;
-    let userHasInteracted = false;
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-        authDomain: "videos-5e336.firebaseapp.com",
-        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-        projectId: "videos-5e336",
-        storageBucket: "videos-5e336.firebasestorage.app",
-        messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const auth = firebase.auth();
-    const syncRef = db.ref('videoSync');
-    const tapesRef = db.ref('tapesLibrary');
-
-    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
-    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
-
-    function showOSD(text) {
-        osd.innerText = text;
-        osd.style.display = 'block';
-        setTimeout(() => { osd.style.display = 'none'; }, 3000);
-    }
-
-    function handlePowerClick() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("المسؤول متصل حالياً - التحكم مقفل");
-            return;
+    <script>
+        function startSearch() {
+            const q = document.getElementById('query').value;
+            if (q) {
+                // نستخدم محرك بحث يسمح بالعرض داخل الإطارات (مثل DuckDuckGo أو Bing) 
+                // لأن جوجل الأصلي يمنع الظهور داخل iframe لأسباب أمنية.
+                // إذا أردت جوجل تحديداً، سيفتح في صفحة جديدة، لذا هذا البديل الأفضل:
+                const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(q)}`;
+                document.getElementById('googleFrame').src = searchUrl;
+            } else {
+                alert("الرجاء كتابة شيء للبحث عنه");
+            }
         }
-        syncRef.update({ tvPower: !isPoweredOn });
-    }
 
-    function applyPowerState(state) {
-        isPoweredOn = state;
-        if (isPoweredOn) {
-            powerBtn.classList.add('active');
-            overlay.style.display = 'none';
-            initAudio();
-            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
-        } else {
-            powerBtn.classList.remove('active');
-            overlay.style.display = 'flex';
-            video.style.display = 'none';
-            video.pause();
-            toggleStatic(false);
-            if (audioCtx) audioCtx.suspend();
-        }
-    }
-
-    function publicEject() {
-        if (globalAdminPresent && !isAdmin) { alert("المسؤول متصل - لا يمكن الإخراج"); return; }
-        if(!isPoweredOn) { alert("قم بتشغيل الجهاز أولاً"); return; }
-        showOSD("⏏ EJECT");
-        syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
-    }
-
-    function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
-        const url = document.getElementById('newTapeUrl').value;
-        if(!url) return;
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
-            document.getElementById('newTapeName').value = "";
-            document.getElementById('newTapeUrl').value = "";
+        // تمكين البحث عند الضغط على زر Enter
+        document.getElementById('query').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                startSearch();
+            }
         });
-    }
+    </script>
 
-    function deleteTape(key) {
-        if(confirm("هل تريد مسح هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
-    }
-
-    tapesRef.on('value', (snap) => {
-        const shelf = document.getElementById('vhsShelf');
-        shelf.innerHTML = "";
-        const data = snap.val();
-        if(!data) return;
-
-        Object.keys(data).forEach(key => {
-            const tape = data[key];
-            const el = document.createElement('div');
-            el.className = 'vhs-tape';
-            el.style.borderLeftColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
-            el.innerHTML = `
-                <div class="delete-btn" style="display:${isAdmin?'flex':'none'}" onclick="event.stopPropagation(); deleteTape('${key}')">✕</div>
-                <div class="tape-label">${tape.name}</div>
-            `;
-            el.onclick = () => {
-                if (globalAdminPresent && !isAdmin) { alert("المسؤول متصل"); return; }
-                if(!isPoweredOn) { alert("شغل الجهاز أولاً"); return; }
-                showOSD("▶ LOADING");
-                syncRef.update({ url: tape.url, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
-            };
-            shelf.appendChild(el);
-        });
-    });
-
-    // --- Noise & Static Engine ---
-    function initAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-
-    function startStaticSound() {
-        if (!audioCtx || noiseNode || !isPoweredOn) return;
-        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 0.1 - 0.05;
-        noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; noiseNode.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.01;
-        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
-        noiseNode.start();
-    }
-
-    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
-
-    function loopNoise() {
-        if (!isPoweredOn) return;
-        canvas.width = 320; canvas.height = 240;
-        const idata = ctx.createImageData(canvas.width, canvas.height);
-        const b32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < b32.length; i++) {
-            b32[i] = (Math.random() > 0.98) ? 0xffffffff : (0xff000000 | (Math.random() * 0x333333));
-        }
-        ctx.putImageData(idata, 0, 0);
-        noiseID = requestAnimationFrame(loopNoise);
-    }
-
-    function toggleStatic(show) {
-        if (show && isPoweredOn) {
-            canvas.style.display = 'block';
-            if (!noiseID) loopNoise();
-            startStaticSound();
-        } else {
-            canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); noiseID = null;
-            stopStaticSound();
-        }
-    }
-
-    // --- Synchronization Core ---
-    function handleSyncUpdate(data) {
-        if (!data) return;
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) applyPowerState(data.tvPower);
-        globalAdminPresent = data.adminPresent || false;
-        if (!isPoweredOn) return;
-
-        if (!data.url) {
-            video.style.display = 'none'; video.pause();
-            toggleStatic(true); return;
-        }
-        
-        isRemoteUpdate = true;
-        video.style.display = 'block'; 
-        toggleStatic(false); 
-        
-        if (!video.src.includes(data.url)) loadVideo(data.url);
-
-        let targetTime = data.currentTime;
-        if (data.isPlaying && data.lastUpdated) {
-            const elapsed = (Date.now() - data.lastUpdated) / 1000;
-            targetTime = elapsed > 0 ? elapsed : data.currentTime;
-        }
-
-        if (data.isPlaying) video.play().catch(() => { video.muted = true; video.play(); });
-        else video.pause();
-
-        if (Math.abs(video.currentTime - targetTime) > 3) video.currentTime = targetTime;
-        setTimeout(() => { isRemoteUpdate = false; }, 500);
-    }
-
-    // --- Admin & Auth ---
-    auth.onAuthStateChanged(user => {
-        if (user && user.email === "t@t.tt") {
-            isAdmin = true;
-            document.getElementById('authSection').style.display = 'none';
-            document.getElementById('adminSection').style.display = 'block';
-            syncRef.update({ adminPresent: true });
-            
-            video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ currentTime: video.currentTime, lastUpdated: Date.now() - (video.currentTime * 1000), adminPresent: true });
-                }
-            };
-        }
-    });
-
-    document.getElementById('adminPass').addEventListener('input', (e) => {
-        if (e.target.value.length >= 6) auth.signInWithEmailAndPassword("t@t.tt", e.target.value).catch(()=>{});
-    });
-
-    let hls;
-    function loadVideo(url) {
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); }
-            else { video.src = url; }
-        } else { video.src = url; }
-    }
-
-    function clearDB() { if (confirm("إعادة ضبط المصنع؟")) syncRef.set({ tvPower: false }); }
-    function adminLogout() { syncRef.update({ adminPresent: false }).then(() => { auth.signOut(); location.reload(); }); }
-
-    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-</script>
 </body>
 </html>
