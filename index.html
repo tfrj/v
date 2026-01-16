@@ -9,7 +9,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         :root { 
@@ -71,7 +70,7 @@
             display: none;
         }
 
-        video, #yt-player { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; position: absolute; top:0; left:0; border:none; }
+        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
 
         .tv-controls {
             display: flex;
@@ -230,7 +229,6 @@
             <div id="tap-overlay"></div>
             <canvas id="noise-canvas"></canvas>
             <video id="video" controls playsinline></video>
-            <div id="yt-player"></div>
         </div>
         
         <div class="tv-controls">
@@ -254,7 +252,7 @@
         
         <div id="adminSection">
             <p id="adminStatusText" style="font-size: 10px; color: var(--power-green); margin-bottom: 5px;">وضع المسؤول: متصل</p>
-            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK OR YOUTUBE URL">
+            <input type="text" id="videoUrl" placeholder="PASTE DIRECT LINK TO TV">
             
             <div class="admin-tape-controls">
                 <p style="font-size: 10px; color: #aaa;">إضافة شريط جديد للرف:</p>
@@ -262,11 +260,6 @@
                     <input type="text" id="newTapeName" placeholder="اسم الشريط (اختياري)" style="font-size: 11px; padding: 8px;">
                     <input type="text" id="newTapeUrl" placeholder="رابط فيديو الشريط" style="font-size: 11px; padding: 8px;">
                     <button onclick="addNewTape()" style="padding: 8px; font-size: 10px; background: var(--power-green); color: black; font-weight: bold;">+ إضافة شريط للرف</button>
-                    
-                    <hr style="opacity: 0.1; margin: 10px 0;">
-                    <p style="font-size: 9px; color: #f1c40f;">استيراد ملف IPTV (.m3u) من الهاتف:</p>
-                    <input type="file" id="iptvFileInput" accept=".m3u,.m3u8" style="font-size: 10px; padding: 5px; background: #000;">
-                    <button onclick="handleIPTVUpload()" style="padding: 8px; font-size: 10px; background: #3498db; color: white;">جلب القنوات للرف</button>
                 </div>
             </div>
 
@@ -292,7 +285,6 @@
     let isRemoteUpdate = false;
     let globalAdminPresent = false;
     let userHasInteracted = false;
-    let ytPlayer = null; 
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -312,36 +304,6 @@
 
     document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
     document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
-
-    function getYTId(url) {
-        if (!url) return null;
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-        const match = url.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : null;
-    }
-
-    function onYouTubeIframeAPIReady() {
-        ytPlayer = new YT.Player('yt-player', {
-            height: '100%',
-            width: '100%',
-            playerVars: { 'autoplay': 0, 'controls': 1, 'modestbranding': 1, 'playsinline': 1, 'rel': 0 },
-            events: {
-                'onStateChange': onPlayerStateChange
-            }
-        });
-    }
-
-    function onPlayerStateChange(event) {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            const isPlaying = (event.data == YT.PlayerState.PLAYING);
-            syncRef.update({ 
-                isPlaying: isPlaying, 
-                currentTime: ytPlayer.getCurrentTime(),
-                lastUpdated: Date.now() - (ytPlayer.getCurrentTime() * 1000) 
-            });
-        }
-    }
 
     function handlePowerClick() {
         userHasInteracted = true;
@@ -364,9 +326,7 @@
             powerBtn.classList.remove('active');
             overlay.style.display = 'block';
             video.style.display = 'none';
-            if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
             video.pause();
-            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             toggleStatic(false);
             if (audioCtx) audioCtx.suspend();
         }
@@ -374,6 +334,7 @@
 
     function publicEject() {
         userHasInteracted = true;
+        // تعديل: منع المشاهد من الإخراج إذا كان الأدمن موجوداً
         if (globalAdminPresent && !isAdmin) {
             alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
             return;
@@ -390,38 +351,6 @@
             document.getElementById('newTapeName').value = "";
             document.getElementById('newTapeUrl').value = "";
         });
-    }
-
-    function handleIPTVUpload() {
-        const fileInput = document.getElementById('iptvFileInput');
-        const file = fileInput.files[0];
-        if (!file) { alert("اختر ملف m3u من جوالك أولاً"); return; }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const lines = e.target.result.split('\n');
-            let channelName = "";
-            let count = 0;
-
-            lines.forEach(line => {
-                line = line.trim();
-                if (line.startsWith('#EXTINF:')) {
-                    const info = line.split(',');
-                    channelName = info[info.length - 1] || "قناة غير معروفة";
-                } else if (line.startsWith('http')) {
-                    tapesRef.push({ 
-                        name: channelName || "بث مباشر", 
-                        url: line, 
-                        timestamp: Date.now() 
-                    });
-                    channelName = "";
-                    count++;
-                }
-            });
-            alert("تمت إضافة " + count + " قناة إلى الرف بنجاح!");
-            fileInput.value = "";
-        };
-        reader.readAsText(file);
     }
 
     function deleteTape(key) {
@@ -444,12 +373,13 @@
             `;
             el.onclick = () => {
                 userHasInteracted = true;
+                // تعديل: منع المشاهد من تغيير الشريط إذا كان الأدمن موجوداً
                 if (globalAdminPresent && !isAdmin) {
                     alert("الأدمن متصل، هو فقط من يغير الأشرطة حالياً");
                     return;
                 }
                 if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-                
+                video.play().catch(() => {}); 
                 syncRef.update({ 
                     url: tape.url, 
                     currentTime: 0, 
@@ -512,6 +442,7 @@
 
     video.onpause = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من إيقاف الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ isPlaying: false, currentTime: video.currentTime });
         }
@@ -519,6 +450,7 @@
 
     video.onplay = () => {
         if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
+            // منع المشاهد من تشغيل الفيديو عند الجميع إذا كان الأدمن موجوداً
             if (globalAdminPresent && !isAdmin) return;
             syncRef.update({ 
                 isPlaying: true, 
@@ -536,75 +468,41 @@
         }
 
         globalAdminPresent = data.adminPresent || false;
+
         if (!isPoweredOn) return;
 
         if (!data.url) {
-            video.style.display = 'none'; 
-            if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
-            video.pause();
-            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            video.style.display = 'none'; video.pause();
             toggleStatic(true); return;
         }
         
         isRemoteUpdate = true;
+        video.style.display = 'block'; 
         toggleStatic(false); 
         
-        const ytId = getYTId(data.url);
-
-        if (ytId) {
-            video.style.display = 'none';
-            video.pause();
-            document.getElementById('yt-player').style.display = 'block';
-            
-            if (ytPlayer && ytPlayer.loadVideoById) {
-                const currentData = ytPlayer.getVideoData ? ytPlayer.getVideoData() : null;
-                if (!currentData || currentData.video_id !== ytId) {
-                    ytPlayer.loadVideoById(ytId, data.currentTime || 0);
-                }
-            }
-
-            let targetTime = data.currentTime;
-            if (data.isPlaying && data.lastUpdated) {
-                targetTime = (Date.now() - data.lastUpdated) / 1000;
-            }
-
-            if (ytPlayer && ytPlayer.getCurrentTime) {
-                if (data.isPlaying) {
-                    if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
-                } else {
-                    if (ytPlayer.getPlayerState() !== YT.PlayerState.PAUSED) ytPlayer.pauseVideo();
-                }
-
-                const timeDiff = Math.abs(ytPlayer.getCurrentTime() - targetTime);
-                if (timeDiff > 3) { 
-                    ytPlayer.seekTo(targetTime, true);
-                }
-            }
-        } else {
-            if(document.getElementById('yt-player')) document.getElementById('yt-player').style.display = 'none';
-            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-            video.style.display = 'block'; 
-
-            if (!video.src.includes(data.url)) {
-                loadVideo(data.url);
-            }
-
-            let targetTime = data.currentTime;
-            if (data.isPlaying && data.lastUpdated) {
-                const elapsed = (Date.now() - data.lastUpdated) / 1000;
-                targetTime = elapsed > 0 ? elapsed : data.currentTime;
-            }
-
-            if (data.isPlaying) { 
-                video.play().catch(() => { video.muted = true; video.play(); }); 
-            } else { 
-                video.pause(); 
-            }
-
-            if (Math.abs(video.currentTime - targetTime) > 2) video.currentTime = targetTime;
+        if (!video.src.includes(data.url)) {
+            loadVideo(data.url);
         }
+
+        let targetTime = data.currentTime;
+        if (data.isPlaying && data.lastUpdated) {
+            const elapsed = (Date.now() - data.lastUpdated) / 1000;
+            targetTime = elapsed > 0 ? elapsed : data.currentTime;
+        }
+
+        if (data.isPlaying) { 
+            video.play().catch(error => {
+                video.muted = true;
+                video.play();
+            }); 
+        } else { 
+            video.pause(); 
+        }
+
+        const timeDiff = Math.abs(video.currentTime - targetTime);
+        if (timeDiff > 2) video.currentTime = targetTime;
         
-        setTimeout(() => { isRemoteUpdate = false; }, 1000); 
+        setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
     auth.onAuthStateChanged(user => {
@@ -613,27 +511,18 @@
             userHasInteracted = true;
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('adminSection').style.display = 'block';
+            
             syncRef.update({ adminPresent: true });
 
-            setInterval(() => {
-                if (isAdmin && isPoweredOn && !isRemoteUpdate) {
-                    let curr = 0, playing = false;
-                    if (video.style.display !== 'none') {
-                        curr = video.currentTime;
-                        playing = !video.paused;
-                    } else if (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getPlayerState) {
-                        curr = ytPlayer.getCurrentTime();
-                        playing = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
-                    }
-                    if (playing) {
-                        syncRef.update({ 
-                            currentTime: curr, 
-                            lastUpdated: Date.now() - (curr * 1000),
-                            adminPresent: true 
-                        });
-                    }
+            video.ontimeupdate = () => {
+                if (!video.paused && !isRemoteUpdate && isAdmin) {
+                    syncRef.update({ 
+                        currentTime: video.currentTime, 
+                        lastUpdated: Date.now() - (video.currentTime * 1000),
+                        adminPresent: true 
+                    });
                 }
-            }, 4000);
+            };
 
             window.addEventListener('beforeunload', () => {
                 syncRef.update({ adminPresent: false });
@@ -647,7 +536,7 @@
 
     document.getElementById('videoUrl').addEventListener('change', (e) => {
         const val = e.target.value.trim();
-        if (val.includes('http')) {
+        if (val.startsWith('http')) {
             syncRef.update({ 
                 url: val, 
                 currentTime: 0, 
@@ -666,22 +555,9 @@
         if (hls) hls.destroy();
         if (url.includes('.m3u8')) {
             if (Hls.isSupported()) { 
-                // --- إضافة إعدادات التخزين المؤقت لتقليل التقطيع ---
-                hls = new Hls({
-                    maxBufferLength: 30,        // تخزين 30 ثانية
-                    maxMaxBufferLength: 60,     // أقصى حد للتخزين 60 ثانية
-                    startLevel: -1,             // اختيار أفضل جودة تلقائياً
-                    appendErrorMaxRetry: 10,    // محاولة إعادة الاتصال عند الخطأ
-                    enableWorker: true          // تشغيل المعالجة في الخلفية لتسريع الأداء
-                }); 
-                hls.loadSource(url); 
-                hls.attachMedia(video); 
-            } else { 
-                video.src = url; 
-            }
-        } else { 
-            video.src = url; 
-        }
+                hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); 
+            } else { video.src = url; }
+        } else { video.src = url; }
     }
 
     function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
