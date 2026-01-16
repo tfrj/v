@@ -3,56 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المشغل العالمي</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.6/shaka-player.compiled.js"></script>
+    <title>مشغل البث المباشر</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .controls { width: 100%; max-width: 800px; margin-bottom: 20px; display: flex; gap: 10px; }
-        input { flex: 1; padding: 12px; border-radius: 5px; border: 1px solid #444; background: #222; color: #fff; }
-        button { padding: 12px 20px; background: #e50914; border: none; color: #fff; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        #video-container { width: 100%; max-width: 800px; background: #111; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; }
-        video { width: 100%; height: 100%; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .container { width: 100%; max-width: 800px; text-align: center; }
+        video { width: 100%; border: 2px solid #333; border-radius: 10px; background: #111; }
+        .status { margin-top: 10px; color: #00ff00; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <h3>مشغل الروابط المباشرة</h3>
-    <div class="controls">
-        <input type="text" id="urlInput" placeholder="الصق الرابط هنا (m3u8, mp4, mpd, mkv)...">
-        <button onclick="loadVideo()">تشغيل</button>
-    </div>
+<div class="container">
+    <h2>بث مباشر</h2>
+    <video id="video" controls autoplay playsinline></video>
+    <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
+</div>
 
-    <div id="video-container">
-        <video id="video" controls autoplay></video>
-    </div>
+<script>
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    // الرابط الذي أرسلته
+    const videoSrc = 'https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264';
 
-    <script>
-        async function initPlayer() {
-            const video = document.getElementById('video');
-            const player = new shaka.Player(video);
-
-            // التعامل مع الأخطاء
-            player.addEventListener('error', (event) => {
-                console.error('Error code', event.detail.code, 'object', event.detail);
-                alert("فشل التشغيل: قد يكون الرابط محمي أو غير صالح.");
-            });
-
-            window.player = player;
-        }
-
-        async function loadVideo() {
-            const url = document.getElementById('urlInput').value;
-            if (!url) return;
-
-            try {
-                await player.load(url);
-                console.log('The video has now been loaded!');
-            } catch (e) {
-                console.error('Load failed!', e);
+    if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(videoSrc);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            status.innerText = "تم الاتصال - البث يعمل الآن";
+            video.play();
+        });
+        hls.on(Hls.Events.ERROR, function(event, data) {
+            if (data.fatal) {
+                status.style.color = "red";
+                status.innerText = "فشل التحميل: الرابط قد يحتاج لتحديث أو المتصفح يمنع الوصول.";
             }
-        }
+        });
+    } 
+    // لدعم متصفحات آيفون (Safari) التي تدعم الصيغة تلقائياً
+    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = videoSrc;
+        video.addEventListener('loadedmetadata', function() {
+            video.play();
+        });
+    }
+</script>
 
-        document.addEventListener('DOMContentLoaded', initPlayer);
-    </script>
 </body>
 </html>
