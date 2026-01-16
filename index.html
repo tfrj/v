@@ -3,49 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو الخارق</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
+    <title>المشغل العالمي</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.6/shaka-player.compiled.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: #0b0e14; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .input-section { width: 100%; max-width: 800px; margin-bottom: 20px; display: flex; gap: 5px; }
-        input[type="text"] { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #333; background: #1a1f29; color: white; font-size: 14px; }
-        button { padding: 0 25px; background-color: #e50914; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        #dplayer { width: 100%; max-width: 800px; height: 450px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .controls { width: 100%; max-width: 800px; margin-bottom: 20px; display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border-radius: 5px; border: 1px solid #444; background: #222; color: #fff; }
+        button { padding: 12px 20px; background: #e50914; border: none; color: #fff; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        #video-container { width: 100%; max-width: 800px; background: #111; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; }
+        video { width: 100%; height: 100%; }
     </style>
 </head>
 <body>
 
-    <h2 style="color: #e50914;">المشغل الذكي</h2>
-
-    <div class="input-section">
-        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو أو رابط البث المباشر هنا..." />
-        <button onclick="playVideo()">تشغيل</button>
+    <h3>مشغل الروابط المباشرة</h3>
+    <div class="controls">
+        <input type="text" id="urlInput" placeholder="الصق الرابط هنا (m3u8, mp4, mpd, mkv)...">
+        <button onclick="loadVideo()">تشغيل</button>
     </div>
 
-    <div id="dplayer"></div>
+    <div id="video-container">
+        <video id="video" controls autoplay></video>
+    </div>
 
     <script>
-        // إعداد المشغل
-        let dp = new DPlayer({
-            container: document.getElementById('dplayer'),
-            video: { url: '', type: 'auto' },
-            theme: '#e50914'
-        });
+        async function initPlayer() {
+            const video = document.getElementById('video');
+            const player = new shaka.Player(video);
 
-        function playVideo() {
-            const url = document.getElementById('videoUrl').value.trim();
-            if (!url) return alert("ضع الرابط أولاً");
-
-            // تنظيف المشغل وتشغيل الرابط الجديد بدعم HLS
-            dp.switchVideo({
-                url: url,
-                type: 'auto'
+            // التعامل مع الأخطاء
+            player.addEventListener('error', (event) => {
+                console.error('Error code', event.detail.code, 'object', event.detail);
+                alert("فشل التشغيل: قد يكون الرابط محمي أو غير صالح.");
             });
-            
-            dp.play();
+
+            window.player = player;
         }
+
+        async function loadVideo() {
+            const url = document.getElementById('urlInput').value;
+            if (!url) return;
+
+            try {
+                await player.load(url);
+                console.log('The video has now been loaded!');
+            } catch (e) {
+                console.error('Load failed!', e);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initPlayer);
     </script>
 </body>
 </html>
