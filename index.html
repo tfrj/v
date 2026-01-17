@@ -3,82 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل فيديو متزامن</title>
+    <title>مشغل فيديو احترافي متزامن</title>
     <style>
+        /* تصميم عصري وخلفية متدرجة */
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
             padding: 20px;
-            background-color: #f4f4f9;
         }
 
-        .video-container {
+        .main-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
             width: 100%;
-            max-width: 600px;
-            background: #000;
-            border-radius: 8px;
+            max-width: 700px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #4ecca3;
+            font-weight: 300;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            background: #000;
+            aspect-ratio: 16 / 9;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
         }
 
         video {
             width: 100%;
-            display: block;
+            height: 100%;
+            object-fit: contain;
         }
 
-        .controls-area {
-            width: 100%;
-            max-width: 600px;
-            margin-top: 20px;
+        .input-group {
+            margin-top: 25px;
             display: flex;
-            flex-direction: column;
             gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 5px;
+            border-radius: 12px;
         }
 
         input[type="text"] {
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 15px;
+            color: white;
+            outline: none;
+            font-size: 14px;
+        }
+
+        input[type="text"]::placeholder {
+            color: #bbb;
         }
 
         button {
-            padding: 12px;
-            background-color: #25d366;
-            color: white;
+            background: #4ecca3;
+            color: #1a1a2e;
             border: none;
-            border-radius: 5px;
-            font-size: 16px;
+            padding: 0 25px;
+            border-radius: 8px;
+            font-weight: bold;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s ease;
         }
 
         button:hover {
-            background-color: #128c7e;
+            background: #45b291;
+            transform: translateY(-2px);
+        }
+
+        .status-tag {
+            display: inline-block;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #4ecca3;
+            opacity: 0.8;
         }
     </style>
 </head>
 <body>
 
-    <div class="video-container">
-        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Waiting+for+Link...">
-            Your browser does not support the video tag.
-        </video>
-    </div>
+    <div class="main-card">
+        <h2>بث مباشر متزامن</h2>
+        
+        <div class="video-wrapper">
+            <video id="myPlayer" controls poster="https://via.placeholder.com/700x400/16213e/4ecca3?text=Waiting+for+Sync...">
+                Your browser does not support the video tag.
+            </video>
+        </div>
 
-    <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا...">
-        <button id="btnLoad">تشغيل الفيديو وتحديث الجميع</button>
+        <div class="input-group">
+            <input type="text" id="videoUrl" placeholder="أدخل رابط الفيديو (MP4, Direct Link)...">
+            <button id="btnLoad">تحديث للجميع</button>
+        </div>
+        
+        <div class="status-tag">● متصل بقاعدة بيانات Firebase</div>
     </div>
 
     <script type="module">
-        // 1. استيراد المكتبات اللازمة من Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // 2. إعدادات Firebase الخاصة بك
+        // إعداداتك (كما هي بدون تغيير)
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -90,7 +136,6 @@
             measurementId: "G-2H4SJNLD1R"
         };
 
-        // 3. تهيئة التطبيق وقاعدة البيانات
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const videoPath = ref(db, 'currentVideoUrl');
@@ -99,30 +144,29 @@
         const input = document.getElementById('videoUrl');
         const btn = document.getElementById('btnLoad');
 
-        // --- أ: وظيفة المزامنة (تغيير الفيديو عند الجميع تلقائياً) ---
+        // استلام التحديثات من Firebase
         onValue(videoPath, (snapshot) => {
             const url = snapshot.val();
-            if (url) {
+            if (url && url !== player.src) {
                 player.src = url;
-                player.play().catch(e => console.log("التشغيل التلقائي ينتظر تفاعل المستخدم"));
+                player.load();
+                player.play().catch(() => console.log("بانتظار تفاعل المستخدم للتشغيل التلقائي"));
             }
         });
 
-        // --- ب: وظيفة الإرسال (عندما تضع رابطاً وتضغط الزر) ---
-        window.loadVideo = function() {
-            const url = input.value;
+        // إرسال التحديثات إلى Firebase
+        btn.onclick = function() {
+            const url = input.value.trim();
             if (url) {
-                // نحدث القيمة في Firebase بدلاً من تحديث المشغل يدوياً
-                // بمجرد التحديث، ستعمل وظيفة onValue أعلاه عند الكل (بما فيهم أنت)
-                set(videoPath, url);
+                set(videoPath, url)
+                    .then(() => {
+                        input.value = ""; // مسح الحقل بعد الإرسال بنجاح
+                    })
+                    .catch((error) => alert("خطأ في الاتصال: " + error.message));
             } else {
-                alert("يرجى إدخال رابط فيديو صحيح");
+                alert("يرجى إدخال رابط فيديو أولاً");
             }
         };
-
-        // ربط الزر بالدالة
-        btn.onclick = loadVideo;
-
     </script>
 
 </body>
