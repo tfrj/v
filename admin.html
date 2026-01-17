@@ -2,22 +2,29 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>بث Puffin</title>
+    <title>لوحة تحكم الآدمن</title>
     <style>
-        body { background: #000; margin: 0; padding: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        video { width: 100%; max-height: 100vh; background: #000; }
+        body { background: #222; color: white; font-family: sans-serif; padding: 20px; text-align: center; }
+        .admin-box { background: #333; padding: 20px; border-radius: 10px; display: inline-block; width: 80%; }
+        input { width: 70%; padding: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        .status { margin-top: 15px; color: #aaa; }
     </style>
 </head>
 <body>
 
-<video id="puffinPlayer" controls autoplay playsinline>
-    <source id="videoSource" src="" type="video/mp4">
-    متصفحك لا يدعم التشغيل.
-</video>
+<div class="admin-box">
+    <h2>التحكم بالبث</h2>
+    <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو (MP4) هنا...">
+    <button id="updateBtn">تحديث الفيديو عند الكل</button>
+    <p class="status">ملاحظة: أنت تتحكم في تشغيل وإيقاف الفيديو للمشاهدين حالياً.</p>
+</div>
+
+<video id="adminPlayer" style="display:none"></video>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -33,31 +40,24 @@
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    const video = document.getElementById('puffinPlayer');
-    const source = document.getElementById('videoSource');
+    const urlInput = document.getElementById('videoUrl');
+    const updateBtn = document.getElementById('updateBtn');
 
-    onValue(videoRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            // تحديث الرابط إذا اختلف
-            if (source.src !== data.url) {
-                source.src = data.url;
-                video.load();
-            }
-            
-            // مزامنة الوقت
-            if (Math.abs(video.currentTime - data.time) > 2) {
-                video.currentTime = data.time;
-            }
-
-            // مزامنة الحالة
-            if (data.status === "playing") {
-                video.play().catch(() => {});
-            } else {
-                video.pause();
-            }
+    // تحديث الرابط في قاعدة البيانات
+    updateBtn.onclick = () => {
+        const newUrl = urlInput.value;
+        if(newUrl) {
+            update(videoRef, {
+                url: newUrl,
+                time: 0,
+                status: "paused"
+            });
+            alert("تم تحديث الفيديو للمشاهدين!");
         }
-    });
+    };
+
+    // مزامنة التحكم (Play/Pause) من أي مشغل يفتحه الآدمن
+    // ملاحظة: يمكنك إضافة مشغل مرئي هنا لتتحكم بالوقت بدقة.
 </script>
 </body>
 </html>
