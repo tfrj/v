@@ -2,22 +2,18 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بث المشاهدين - Puffin</title>
-    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <title>بث Puffin</title>
     <style>
-        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { width: 90%; max-width: 800px; }
-        .plyr { border-radius: 12px; overflow: hidden; }
+        body { background: #000; margin: 0; padding: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        video { width: 100%; max-height: 100vh; background: #000; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <video id="player" playsinline controls>
-        <source id="videoSource" src="" type="video/mp4" />
-    </video>
-</div>
+<video id="puffinPlayer" controls autoplay playsinline>
+    <source id="videoSource" src="" type="video/mp4">
+    متصفحك لا يدعم التشغيل.
+</video>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -37,33 +33,31 @@
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    const video = document.getElementById('player');
+    const video = document.getElementById('puffinPlayer');
     const source = document.getElementById('videoSource');
 
-    // المشاهد "يسمع" فقط للتغييرات من Firebase
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // 1. إذا تغير الرابط، قم بتحديث المصدر
+            // تحديث الرابط إذا اختلف
             if (source.src !== data.url) {
                 source.src = data.url;
-                video.load(); 
+                video.load();
             }
-
-            // 2. مزامنة الوقت والحالة
+            
+            // مزامنة الوقت
             if (Math.abs(video.currentTime - data.time) > 2) {
                 video.currentTime = data.time;
             }
 
-            if (data.status === "playing" && video.paused) {
-                video.play().catch(() => console.log("بانتظار تفاعل المستخدم..."));
-            } else if (data.status === "paused" && !video.paused) {
+            // مزامنة الحالة
+            if (data.status === "playing") {
+                video.play().catch(() => {});
+            } else {
                 video.pause();
             }
         }
     });
 </script>
-<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
-<script>const player = new Plyr('#player');</script>
 </body>
 </html>
