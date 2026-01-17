@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل فيديو بسيط</title>
+    <title>مشغل فيديو متزامن</title>
     <style>
         body {
             font-family: sans-serif;
@@ -63,20 +63,22 @@
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls playsinline webkit-playsinline poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
+        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Waiting+for+Link...">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أدخل رابط الفيديو هنا...">
-        <button onclick="loadVideo()">تشغيل الفيديو</button>
+        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا...">
+        <button id="btnLoad">تشغيل الفيديو وتحديث الجميع</button>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <script type="module">
+        // 1. استيراد المكتبات اللازمة من Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    <script>
+        // 2. إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -88,52 +90,39 @@
             measurementId: "G-2H4SJNLD1R"
         };
 
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const videoRef = database.ref('currentVideo');
+        // 3. تهيئة التطبيق وقاعدة البيانات
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoPath = ref(db, 'currentVideoUrl');
 
-        function loadVideo() {
-            let url = document.getElementById('videoUrl').value;
-            
+        const player = document.getElementById('myPlayer');
+        const input = document.getElementById('videoUrl');
+        const btn = document.getElementById('btnLoad');
+
+        // --- أ: وظيفة المزامنة (تغيير الفيديو عند الجميع تلقائياً) ---
+        onValue(videoPath, (snapshot) => {
+            const url = snapshot.val();
             if (url) {
-                // إزالة download=true لضمان التشغيل بدل التحميل
-                url = url.replace('download=true', 'download=false');
-                
-                videoRef.set({
-                    url: url,
-                    timestamp: Date.now()
-                });
+                player.src = url;
+                player.play().catch(e => console.log("التشغيل التلقائي ينتظر تفاعل المستخدم"));
+            }
+        });
+
+        // --- ب: وظيفة الإرسال (عندما تضع رابطاً وتضغط الزر) ---
+        window.loadVideo = function() {
+            const url = input.value;
+            if (url) {
+                // نحدث القيمة في Firebase بدلاً من تحديث المشغل يدوياً
+                // بمجرد التحديث، ستعمل وظيفة onValue أعلاه عند الكل (بما فيهم أنت)
+                set(videoPath, url);
             } else {
                 alert("يرجى إدخال رابط فيديو صحيح");
             }
-        }
+        };
 
-        videoRef.on('value', (snapshot) => {
-            const data = snapshot.val();
-            const player = document.getElementById('myPlayer');
-            
-            if (data && data.url) {
-                if (player.src !== data.url) {
-                    player.src = data.url;
-                    player.load(); // إعادة تحميل المصدر الجديد
-                    
-                    // محاولة التشغيل مع كتم الصوت لتجاوز قيود آبل و Puffin
-                    player.muted = true; 
-                    const playPromise = player.play();
+        // ربط الزر بالدالة
+        btn.onclick = loadVideo;
 
-                    if (playPromise !== undefined) {
-                        playPromise.then(_ => {
-                            console.log("بدأ التشغيل التلقائي صامتاً");
-                            // يمكنك إظهار رسالة للمستخدم لإلغاء كتم الصوت
-                        }).catch(error => {
-                            console.log("المتصفح منع التشغيل التلقائي: " + error);
-                        });
-                    }
-                    
-                    document.getElementById('videoUrl').value = data.url;
-                }
-            }
-        });
     </script>
 
 </body>
