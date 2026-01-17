@@ -63,18 +63,18 @@
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
+        <video id="myPlayer" controls playsinline poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
         <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
-        <button onclick="loadVideo()">تشغيل الفيديو</button>
+        <button id="playBtn">تشغيل الفيديو</button>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
         // إعدادات Firebase الخاصة بك
@@ -90,40 +90,47 @@
         };
 
         // تهيئة Firebase
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const database = firebase.database();
         const videoRef = database.ref('currentVideo');
 
-        // وظيفة التشغيل الأصلية مع إضافة إرسال البيانات لقاعدة البيانات
-        function loadVideo() {
-            const url = document.getElementById('videoUrl').value;
-            const player = document.getElementById('myPlayer');
-            
+        const player = document.getElementById('myPlayer');
+        const urlInput = document.getElementById('videoUrl');
+        const playBtn = document.getElementById('playBtn');
+
+        // وظيفة التشغيل عند الضغط على الزر
+        playBtn.onclick = function() {
+            const url = urlInput.value;
             if (url) {
-                // بدلاً من التشغيل محلياً فقط، نرسل الرابط لقاعدة البيانات
+                // تحديث الرابط في Firebase
                 videoRef.set({
                     url: url,
-                    timestamp: Date.now()
+                    status: 'play',
+                    time: Date.now()
                 });
+                
+                // تشغيل محلي فوري لضمان استجابة المتصفح (Puffin يحتاج تفاعل مباشر)
+                player.src = url;
+                player.load();
+                player.play();
             } else {
                 alert("يرجى إدخال رابط فيديو صحيح");
             }
-        }
+        };
 
-        // الاستماع للتغييرات في Firebase (المزامنة)
+        // استقبال التحديثات من Firebase للمزامنة
         videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
-            const player = document.getElementById('myPlayer');
-            
             if (data && data.url) {
-                // إذا كان الرابط مختلفاً عن الحالي، نقوم بتحديث المشغل
+                // تحديث الرابط فقط إذا كان مختلفاً لمنع إعادة التشغيل اللانهائية
                 if (player.src !== data.url) {
                     player.src = data.url;
-                    player.play().catch(error => {
-                        console.log("التشغيل التلقائي يتطلب تفاعل المستخدم أولاً");
-                    });
-                    // تحديث قيمة الحقل نصياً لجميع المستخدمين
-                    document.getElementById('videoUrl').value = data.url;
+                    urlInput.value = data.url;
+                    player.load();
+                    // محاولة التشغيل التلقائي (قد يحظرها Puffin إلا إذا تفاعل المستخدم)
+                    player.play().catch(e => console.log("Auto-play blocked"));
                 }
             }
         });
