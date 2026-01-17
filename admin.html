@@ -2,29 +2,29 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>لوحة تحكم الآدمن</title>
+    <title>لوحة التحكم</title>
     <style>
-        body { background: #222; color: white; font-family: sans-serif; padding: 20px; text-align: center; }
-        .admin-box { background: #333; padding: 20px; border-radius: 10px; display: inline-block; width: 80%; }
-        input { width: 70%; padding: 10px; border-radius: 5px; border: none; }
-        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
-        .status { margin-top: 15px; color: #aaa; }
+        body { font-family: sans-serif; background: #222; color: #fff; padding: 20px; text-align: center; }
+        input { width: 80%; padding: 12px; margin-bottom: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px 25px; background: #27ae60; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        .controls { margin-top: 20px; border-top: 1px solid #444; padding-top: 20px; }
     </style>
 </head>
 <body>
 
-<div class="admin-box">
-    <h2>التحكم بالبث</h2>
-    <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو (MP4) هنا...">
-    <button id="updateBtn">تحديث الفيديو عند الكل</button>
-    <p class="status">ملاحظة: أنت تتحكم في تشغيل وإيقاف الفيديو للمشاهدين حالياً.</p>
-</div>
+    <h2>إدارة فيديو Puffin</h2>
+    <input type="text" id="vUrl" placeholder="أدخل رابط فيديو MP4 المباشر هنا...">
+    <br>
+    <button id="setVideo">تحديث الفيديو للجميع</button>
 
-<video id="adminPlayer" style="display:none"></video>
+    <div class="controls">
+        <button onclick="sendControl('playing')" style="background:#2980b9">تشغيل للكل</button>
+        <button onclick="sendControl('paused')" style="background:#c0392b">إيقاف للكل</button>
+    </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -40,24 +40,19 @@
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    const urlInput = document.getElementById('videoUrl');
-    const updateBtn = document.getElementById('updateBtn');
-
-    // تحديث الرابط في قاعدة البيانات
-    updateBtn.onclick = () => {
-        const newUrl = urlInput.value;
-        if(newUrl) {
-            update(videoRef, {
-                url: newUrl,
-                time: 0,
-                status: "paused"
-            });
-            alert("تم تحديث الفيديو للمشاهدين!");
+    // زر تحديث الرابط
+    document.getElementById('setVideo').onclick = () => {
+        const url = document.getElementById('vUrl').value;
+        if(url) {
+            update(videoRef, { url: url, time: 0, status: "playing" });
+            alert("تم إرسال الفيديو للمشاهدين");
         }
     };
 
-    // مزامنة التحكم (Play/Pause) من أي مشغل يفتحه الآدمن
-    // ملاحظة: يمكنك إضافة مشغل مرئي هنا لتتحكم بالوقت بدقة.
+    // دوال التحكم بالتشغيل
+    window.sendControl = (status) => {
+        update(videoRef, { status: status });
+    };
 </script>
 </body>
 </html>
