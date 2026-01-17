@@ -4,30 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مشغل المزامنة اللحظية - Puffin</title>
+    
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    
     <style>
         body { background: #1a1a1a; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; }
-        .container { width: 90%; max-width: 800px; }
+        .container { width: 95%; max-width: 800px; }
         .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .admin-panel { margin-top: 20px; display: flex; gap: 10px; width: 90%; max-width: 800px; }
-        input { flex: 1; padding: 10px; border-radius: 5px; border: none; }
-        button { padding: 10px 20px; border-radius: 5px; border: none; background: #00b3ff; color: white; cursor: pointer; }
+        
+        /* تنسيق منطقة الإدخال */
+        .admin-controls { margin-top: 20px; display: flex; gap: 8px; width: 95%; max-width: 800px; }
+        input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; outline: none; }
+        button { padding: 10px 20px; border-radius: 8px; border: none; background: #00b3ff; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #008fcc; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <video id="player" playsinline controls>
-        <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4" />
+        <source id="video-source" src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4" />
     </video>
 </div>
 
-<div class="admin-panel">
-    <input type="text" id="newLink" placeholder="ضع رابط الفيديو الجديد هنا...">
+<div class="admin-controls">
+    <input type="text" id="newLink" placeholder="ضع رابط mp4 الجديد هنا...">
     <button id="updateBtn">تغيير للكل</button>
 </div>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -46,48 +52,67 @@
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    // تهيئة مشغل Plyr
-    const player = new Plyr('#player');
+    // تشغيل Plyr
+    const player = new Plyr('#player', {
+        controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
+    });
+
     const videoElement = document.getElementById('player');
     let isRemoteUpdate = false;
 
-    // --- استقبال التغييرات ---
+    // --- 1. استقبال التحديثات من Firebase ---
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
             isRemoteUpdate = true;
 
-            // 1. تحديث الرابط إذا كان مختلفاً (بدون تخريب المشغل)
+            // تحديث الرابط إذا كان مختلفاً
             if (data.url && videoElement.src !== data.url) {
-                player.source = {
-                    type: 'video',
-                    sources: [{ src: data.url, type: 'video/mp4' }]
-                };
+                videoElement.src = data.url;
+                videoElement.load(); // إعادة تحميل الفيديو الجديد
             }
 
-            // 2. مزامنة الوقت والحالة
+            // مزامنة الوقت والحالة (تشغيل/توقف)
             setTimeout(() => {
-                if (Math.abs(player.currentTime - data.time) > 1.5) {
-                    player.currentTime = data.time;
+                if (Math.abs(videoElement.currentTime - data.time) > 2) {
+                    videoElement.currentTime = data.time;
                 }
-                if (data.status === "playing") player.play();
-                else player.pause();
+                if (data.status === "playing" && videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                } else if (data.status === "paused" && !videoElement.paused) {
+                    videoElement.pause();
+                }
                 isRemoteUpdate = false;
-            }, 500); // تأخير بسيط لضمان تحميل الفيديو الجديد
+            }, 1000); // تأخير ثانية لضمان استقرار الفيديو في Puffin
         }
     });
 
-    // --- إرسال التحديثات ---
-    player.on('play', () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: player.currentTime }); });
-    player.on('pause', () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: player.currentTime }); });
-    player.on('seeked', () => { if (!isRemoteUpdate) update(videoRef, { time: player.currentTime }); });
+    // --- 2. إرسال الأوامر عند التحكم بالفيديو ---
+    videoElement.onplay = () => {
+        if (!isRemoteUpdate) update(videoRef, { status: "playing", time: videoElement.currentTime });
+    };
 
-    // --- وظيفة زر تغيير الرابط ---
+    videoElement.onpause = () => {
+        if (!isRemoteUpdate) update(videoRef, { status: "paused", time: videoElement.currentTime });
+    };
+
+    videoElement.onseeked = () => {
+        if (!isRemoteUpdate) update(videoRef, { time: videoElement.currentTime });
+    };
+
+    // --- 3. زر تحديث الرابط للجميع ---
     document.getElementById('updateBtn').onclick = () => {
         const link = document.getElementById('newLink').value;
-        if (link) {
-            update(videoRef, { url: link, time: 0, status: "paused" });
-            alert("تم إرسال الرابط الجديد للجميع!");
+        if (link && link.includes('http')) {
+            update(videoRef, { 
+                url: link, 
+                time: 0, 
+                status: "paused" 
+            });
+            document.getElementById('newLink').value = ""; // تنظيف الحقل
+            alert("تم تغيير الفيديو عند الجميع!");
+        } else {
+            alert("يرجى وضع رابط صحيح");
         }
     };
 </script>
