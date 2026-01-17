@@ -6,6 +6,8 @@
     <title>مشغل البث المباشر</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
@@ -22,12 +24,11 @@
     <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
 </div>
 
-<script type="module">
-    // استيراد Firebase
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+<script>
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
 
-    // إعداداتك الخاصة
+    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
       apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
       authDomain: "videos-5e336.firebaseapp.com",
@@ -38,20 +39,18 @@
       appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const video = document.getElementById('video');
-    const status = document.getElementById('status');
+    // بدء تشغيل Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
     let hls = new Hls();
 
-    // الاستماع للرابط من Firebase
-    const streamRef = ref(db, 'currentStream');
-    onValue(streamRef, (snapshot) => {
+    // الاستماع للرابط وتحديث المشغل فوراً
+    db.ref('currentStream').on('value', (snapshot) => {
         const videoSrc = snapshot.val();
         
         if (videoSrc) {
             if (Hls.isSupported()) {
-                hls.destroy(); // تنظيف القديم لتشغيل الجديد
+                hls.destroy();
                 hls = new Hls();
                 hls.loadSource(videoSrc);
                 hls.attachMedia(video);
