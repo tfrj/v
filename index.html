@@ -41,7 +41,7 @@
             padding: 12px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            font-size: 16px;
+            font-size: 16px; /* حجم مناسب للمس في الجوال */
         }
 
         button {
@@ -70,7 +70,7 @@
 
     <div class="controls-area">
         <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
-        <button id="playBtn">تشغيل الفيديو</button>
+        <button onclick="loadVideo()">تشغيل الفيديو</button>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -96,42 +96,30 @@
         const database = firebase.database();
         const videoRef = database.ref('currentVideo');
 
-        const player = document.getElementById('myPlayer');
-        const urlInput = document.getElementById('videoUrl');
-        const playBtn = document.getElementById('playBtn');
-
-        // وظيفة التشغيل عند الضغط على الزر
-        playBtn.onclick = function() {
-            const url = urlInput.value;
+        // وظيفتك الأصلية كما هي مع إضافة سطر المزامنة فقط
+        function loadVideo() {
+            const url = document.getElementById('videoUrl').value;
+            const player = document.getElementById('myPlayer');
+            
             if (url) {
-                // تحديث الرابط في Firebase
-                videoRef.set({
-                    url: url,
-                    status: 'play',
-                    time: Date.now()
-                });
+                // مزامنة الرابط مع Firebase
+                videoRef.set({ url: url }); 
                 
-                // تشغيل محلي فوري لضمان استجابة المتصفح (Puffin يحتاج تفاعل مباشر)
                 player.src = url;
-                player.load();
                 player.play();
             } else {
                 alert("يرجى إدخال رابط فيديو صحيح");
             }
-        };
+        }
 
-        // استقبال التحديثات من Firebase للمزامنة
+        // استقبال المزامنة من المستخدمين الآخرين
         videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
-            if (data && data.url) {
-                // تحديث الرابط فقط إذا كان مختلفاً لمنع إعادة التشغيل اللانهائية
-                if (player.src !== data.url) {
-                    player.src = data.url;
-                    urlInput.value = data.url;
-                    player.load();
-                    // محاولة التشغيل التلقائي (قد يحظرها Puffin إلا إذا تفاعل المستخدم)
-                    player.play().catch(e => console.log("Auto-play blocked"));
-                }
+            const player = document.getElementById('myPlayer');
+            if (data && data.url && data.url !== player.src) {
+                player.src = data.url;
+                document.getElementById('videoUrl').value = data.url;
+                player.play().catch(e => console.log("بانتظار تفاعل المستخدم"));
             }
         });
     </script>
