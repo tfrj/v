@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة تحكم الآدمن</title>
+    <style>
+        body { background: #222; color: white; font-family: sans-serif; padding: 20px; text-align: center; }
+        .admin-box { background: #333; padding: 20px; border-radius: 10px; display: inline-block; width: 80%; }
+        input { width: 70%; padding: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        .status { margin-top: 15px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<div class="admin-box">
+    <h2>التحكم بالبث</h2>
+    <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو (MP4) هنا...">
+    <button id="updateBtn">تحديث الفيديو عند الكل</button>
+    <p class="status">ملاحظة: أنت تتحكم في تشغيل وإيقاف الفيديو للمشاهدين حالياً.</p>
+</div>
+
+<video id="adminPlayer" style="display:none"></video>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const videoRef = ref(db, 'sharedVideo');
+
+    const urlInput = document.getElementById('videoUrl');
+    const updateBtn = document.getElementById('updateBtn');
+
+    // تحديث الرابط في قاعدة البيانات
+    updateBtn.onclick = () => {
+        const newUrl = urlInput.value;
+        if(newUrl) {
+            update(videoRef, {
+                url: newUrl,
+                time: 0,
+                status: "paused"
+            });
+            alert("تم تحديث الفيديو للمشاهدين!");
+        }
+    };
+
+    // مزامنة التحكم (Play/Pause) من أي مشغل يفتحه الآدمن
+    // ملاحظة: يمكنك إضافة مشغل مرئي هنا لتتحكم بالوقت بدقة.
+</script>
+</body>
+</html>
