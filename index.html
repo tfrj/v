@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل البث المباشر</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .container { width: 100%; max-width: 800px; text-align: center; }
+        video { width: 100%; border: 2px solid #333; border-radius: 10px; background: #111; }
+        .status { margin: 10px 0; color: #00ff00; font-size: 14px; }
+        
+        /* تنسيق مكان إضافة الرابط */
+        .input-area { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        input[type="text"] { 
+            padding: 10px; width: 70%; border-radius: 5px; border: 1px solid #444; 
+            background: #222; color: #fff; outline: none; 
+        }
+        button { 
+            padding: 10px 20px; border-radius: 5px; border: none; 
+            background: #007bff; color: white; cursor: pointer; font-weight: bold;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>بث مباشر</h2>
+    <video id="video" controls autoplay playsinline></video>
+    <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
+
+    <div class="input-area">
+        <input type="text" id="videoUrl" placeholder="أدخل رابط m3u8 هنا..." 
+               value="https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264">
+        <button onclick="loadNewVideo()">تشغيل الرابط</button>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    const urlInput = document.getElementById('videoUrl');
+    let hls = null;
+
+    function loadNewVideo() {
+        const videoSrc = urlInput.value.trim();
+        if (!videoSrc) {
+            alert("يرجى إدخال رابط أولاً");
+            return;
+        }
+
+        status.style.color = "#00ff00";
+        status.innerText = "جاري تحميل البث الجديد...";
+
+        if (Hls.isSupported()) {
+            // تنظيف أي نسخة قديمة من المشغل
+            if (hls) {
+                hls.destroy();
+            }
+            hls = new Hls();
+            hls.loadSource(videoSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                status.innerText = "تم الاتصال - البث يعمل الآن";
+                video.play();
+            });
+            hls.on(Hls.Events.ERROR, function(event, data) {
+                if (data.fatal) {
+                    status.style.color = "red";
+                    status.innerText = "فشل التحميل: تأكد من صحة الرابط أو جرب متصفحاً آخر.";
+                }
+            });
+        } 
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoSrc;
+            video.addEventListener('loadedmetadata', function() {
+                video.play();
+                status.innerText = "تم الاتصال - البث يعمل الآن";
+            });
+        }
+    }
+
+    // تشغيل الرابط الافتراضي عند فتح الصفحة لأول مرة
+    window.onload = loadNewVideo;
+</script>
+
+</body>
+</html>
