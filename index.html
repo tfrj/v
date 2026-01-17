@@ -3,62 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل بث مباشر - سبيستون</title>
+    <title>سبيستون - مشاهدة جماعية</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // إعدادات Firebase الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        };
+
+        // تهيئة Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoRef = ref(db, 'videoStatus');
+
+        const video = document.getElementById('video');
+        const urlInput = document.getElementById('videoUrl');
+        let isUpdatingLocally = false;
+
+        // دالة تشغيل البث
+        window.playM3U8 = function() {
+            const videoSrc = urlInput.value;
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(videoSrc);
+                hls.attachMedia(video);
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = videoSrc;
+            }
+        };
+
+        // 1. إرسال الحالة إلى Firebase عند التفاعل مع الفيديو
+        video.onplay = () => {
+            if (!isUpdatingLocally) {
+                set(videoRef, { playing: true, time: video.currentTime, lastUpdated: Date.now() });
+            }
+        };
+
+        video.onpause = () => {
+            if (!isUpdatingLocally) {
+                set(videoRef, { playing: false, time: video.currentTime, lastUpdated: Date.now() });
+            }
+        };
+
+        // تحديث الوقت كل 5 ثوانٍ لضمان المزامنة المستمرة
+        video.onseeked = () => {
+            if (!isUpdatingLocally) {
+                set(videoRef, { playing: !video.paused, time: video.currentTime, lastUpdated: Date.now() });
+            }
+        };
+
+        // 2. الاستماع للتغييرات من Firebase وتطبيقها عند الأصدقاء
+        onValue(videoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                isUpdatingLocally = true; // لمنع حدوث حلقة تكرار لانهائية
+
+                // مزامنة الوقت إذا كان الفرق أكثر من ثانية واحدة
+                if (Math.abs(video.currentTime - data.time) > 1.5) {
+                    video.currentTime = data.time;
+                }
+
+                // مزامنة التشغيل والإيقاف
+                if (data.playing && video.paused) {
+                    video.play().catch(e => console.log("تحتاج للتفاعل مع الصفحة أولاً"));
+                } else if (!data.playing && !video.paused) {
+                    video.pause();
+                }
+
+                isUpdatingLocally = false;
+            }
+        });
+
+        window.onload = playM3U8;
+    </script>
+
     <style>
         :root { --primary: #e67e22; --bg: #121212; }
         body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
-        
         .input-group { width: 100%; max-width: 500px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
         input { padding: 15px; border-radius: 10px; border: none; background: #222; color: #00d2ff; font-size: 14px; direction: ltr; }
         button { padding: 15px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: bold; cursor: pointer; }
-
-        .player-card { width: 100%; max-width: 500px; background: #000; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .player-card { width: 100%; max-width: 800px; background: #000; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         video { width: 100%; aspect-ratio: 16 / 9; background: #000; }
-        
-        .live-tag { position: absolute; top: 10px; left: 10px; background: red; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .controls { padding: 15px; display: flex; align-items: center; justify-content: center; background: #1a1a1a; }
-        .play-btn { width: 60px; height: 60px; border-radius: 50%; border: none; background: #333; color: white; font-size: 24px; cursor: pointer; }
+        .status-bar { background: #1a1a1a; padding: 10px; font-size: 12px; text-align: center; color: #888; }
     </style>
 </head>
 <body>
 
     <div class="input-group">
-        <input type="text" id="videoUrl" value="https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264" placeholder="أدخل رابط m3u8 هنا">
-        <button onclick="playM3U8()">تشغيل البث المباشر 📺</button>
+        <input type="text" id="videoUrl" value="https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8" placeholder="رابط البث">
+        <button onclick="playM3U8()">بدء المشاهدة الجماعية 📺</button>
     </div>
 
-    <div class="player-card" style="position: relative;">
-        <div class="live-tag">LIVE - مباشر</div>
+    <div class="player-card">
         <video id="video" controls playsinline></video>
+        <div class="status-bar">نظام المزامنة نشط - أي حركة تقوم بها ستظهر عند أصدقائك</div>
     </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const urlInput = document.getElementById('videoUrl');
-
-        function playM3U8() {
-            const videoSrc = urlInput.value;
-
-            if (Hls.isSupported()) {
-                const hls = new Hls();
-                hls.loadSource(videoSrc);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play();
-                });
-            }
-            // للمتصفحات التي تدعم m3u8 طبيعياً مثل Safari
-            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = videoSrc;
-                video.addEventListener('loadedmetadata', function() {
-                    video.play();
-                });
-            }
-        }
-
-        // تشغيل تلقائي عند فتح الصفحة (اختياري)
-        window.onload = playM3U8;
-    </script>
 </body>
 </html>
