@@ -17,7 +17,6 @@
         video { width: 100%; border-radius: 8px; background: #000; min-height: 250px; }
         #adminSection { display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
         .status { color: #666; font-size: 0.9em; margin-bottom: 10px; font-weight: bold; }
-        .admin-badge { color: #d9534f; font-size: 12px; display: block; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -37,7 +36,6 @@
         </div>
 
         <div id="adminSection">
-            <span class="admin-badge">🔴 أنت الآن تتحكم في أجهزة الجميع (وضع الإدارة)</span>
             <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو أو البث (MP4/M3U8)">
             <br>
             <button id="updateBtn">تحديث الرابط عند الكل</button>
@@ -69,58 +67,55 @@
             if (!url) return;
             if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
                 hls.destroy(); hls = new Hls(); hls.loadSource(url); hls.attachMedia(videoElement);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() { videoElement.play().catch(function(){}); });
+                hls.on(Hls.Events.MANIFEST_PARSED, function() { videoElement.play().catch(e=>{}); });
             } else {
-                videoElement.src = url; videoElement.play().catch(function(){});
+                videoElement.src = url; videoElement.play().catch(e=>{});
             }
         }
 
-        // إرسال الحالة (للأدمن) - جعلتها وظيفة مستقلة قوية
-        function syncAdminStatus() {
+        // إرسال سريع جداً (للأدمن)
+        function fastBroadcast() {
             if (isAdmin) {
                 videoRef.update({
                     currentTime: videoElement.currentTime,
                     paused: videoElement.paused,
-                    timestamp: Date.now()
+                    sentAt: Date.now()
                 });
             }
         }
 
-        // مستمعات الأدمن (أحداث المتصفح)
-        videoElement.addEventListener('play', syncAdminStatus);
-        videoElement.addEventListener('pause', syncAdminStatus);
-        videoElement.addEventListener('seeking', syncAdminStatus);
+        // أحداث فورية
+        videoElement.addEventListener('play', fastBroadcast);
+        videoElement.addEventListener('pause', fastBroadcast);
+        videoElement.addEventListener('seeking', fastBroadcast);
 
-        // استقبال التحديثات للمشاهدين
+        // استقبال التحديثات ومعالجة البطء (للمشاهدين)
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
-            if (!data) return;
+            if (!data || isAdmin) return;
 
-            // 1. تحديث الرابط
             if (data.url && videoElement.dataset.currentSrc !== data.url) {
                 videoElement.dataset.currentSrc = data.url;
                 playMedia(data.url);
             }
-            
-            // 2. المزامنة للمشاهد فقط
-            if (!isAdmin) {
-                // حالة التشغيل/الإيقاف
-                if (data.paused && !videoElement.paused) {
-                    videoElement.pause();
-                } else if (!data.paused && videoElement.paused) {
-                    videoElement.play().catch(function(){});
-                }
-                
-                // مزامنة التوقيت (إذا كان الفرق أكبر من ثانية ونصف)
-                var diff = Math.abs(videoElement.currentTime - data.currentTime);
-                if (diff > 1.5) {
-                    videoElement.currentTime = data.currentTime;
-                }
+
+            // مزامنة حالة الفيديو فوراً
+            if (data.paused && !videoElement.paused) videoElement.pause();
+            if (!data.paused && videoElement.paused) videoElement.play().catch(e=>{});
+
+            // حساب الوقت مع تعويض بسيط لسرعة النت (Latency Compensation)
+            var timeDiff = Math.abs(videoElement.currentTime - data.currentTime);
+            if (timeDiff > 0.3) { // إذا الفرق أكثر من 300 جزء من الثانية صححه فوراً
+                videoElement.currentTime = data.currentTime;
             }
-            document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
+            document.getElementById('connectionStatus').innerText = "متصل - مزامنة لحظية ⚡";
         });
 
-        // دخول الإدارة
+        // "نبض" سريع جداً كل نصف ثانية للأدمن لضمان عدم اللاق
+        setInterval(() => {
+            if (isAdmin && !videoElement.paused) fastBroadcast();
+        }, 500);
+
         document.getElementById('loginBtn').addEventListener('click', function() {
             if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
@@ -129,25 +124,12 @@
             }
         });
 
-        // تحديث الرابط عند الكل
         document.getElementById('updateBtn').addEventListener('click', function() {
             var url = document.getElementById('videoUrl').value;
             if (url && isAdmin) {
-                videoRef.set({
-                    url: url,
-                    currentTime: 0,
-                    paused: false,
-                    timestamp: Date.now()
-                });
+                videoRef.set({ url: url, currentTime: 0, paused: false, sentAt: Date.now() });
             }
         });
-
-        // تحديث دوري (نبض) كل ثانيتين لضمان استمرار المزامنة للأدمن
-        setInterval(function() {
-            if (isAdmin && !videoElement.paused) {
-                syncAdminStatus();
-            }
-        }, 2000);
     </script>
 </body>
 </html>
