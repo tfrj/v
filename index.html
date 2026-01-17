@@ -2,516 +2,91 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>البث المباشر المشترك</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل البث المباشر</title>
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-
+    
     <style>
-        :root { 
-            --bg-color: #f8f9fa;
-            --text-main: #000000;
-            --success-green: #5cb85c;
-            --border-color: #ddd;
-        }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .container { width: 100%; max-width: 800px; text-align: center; }
+        video { width: 100%; border: 2px solid #333; border-radius: 10px; background: #111; }
+        .status { margin: 10px 0; color: #00ff00; font-size: 14px; }
         
-        body { 
-            background-color: var(--bg-color); 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            margin: 0; 
-            padding: 0; 
-            color: var(--text-main);
-            min-height: 100vh;
+        /* تنسيق مكان إضافة الرابط */
+        .input-area { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        input[type="text"] { 
+            padding: 10px; width: 70%; border-radius: 5px; border: 1px solid #444; 
+            background: #222; color: #fff; outline: none; 
         }
-        
-        .header-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-top: 20px;
-            margin-bottom: 10px;
+        button { 
+            padding: 10px 20px; border-radius: 5px; border: none; 
+            background: #007bff; color: white; cursor: pointer; font-weight: bold;
         }
-
-        .status-badge {
-            color: #666;
-            font-size: 16px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 0px; }
-
-        .tv-unit { 
-            background: #fff; 
-            position: relative;
-            width: 100%;
-        }
-
-        .screen-border { 
-            background: #000; 
-            aspect-ratio: 16 / 9; 
-            position: relative; 
-            overflow: hidden; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            margin: 0 10px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        #tap-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #222;
-            z-index: 100;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #tap-overlay::after {
-            content: 'انقر للتشغيل';
-            color: white;
-            font-size: 14px;
-        }
-
-        #noise-canvas {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-            opacity: 0.5;
-            display: none;
-        }
-
-        video { width: 100%; height: 100%; object-fit: contain; z-index: 2; display: none; }
-
-        /* تجميل أزرار التحكم فوق الفيديو */
-        .video-ui-extras {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10;
-            display: flex;
-            gap: 40px;
-            pointer-events: none;
-            width: 100%;
-            justify-content: center;
-        }
-        .skip-icon {
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
-            width: 45px;
-            height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: white;
-            border: 1px solid rgba(255,255,255,0.4);
-        }
-
-        .tv-controls {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            padding: 15px;
-        }
-        
-        .power-btn {
-            width: 45px; height: 45px; border-radius: 50%; border: 1px solid #ccc;
-            background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        }
-        .power-btn.active { background: #e8f5e9; border-color: var(--success-green); }
-        .power-btn svg { width: 24px; fill: #999; }
-        .power-btn.active svg { fill: var(--success-green); }
-
-        .control-panel { 
-            background: #fff; 
-            padding: 30px 20px; 
-            margin-top: 10px;
-            border-top: 1px solid #eee;
-            width: 100%;
-            box-sizing: border-box;
-            text-align: center;
-        }
-        
-        .admin-title {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 25px;
-        }
-
-        input { 
-            width: 100%; 
-            background: #fff; 
-            border: 1px solid #ccc; 
-            color: #333; 
-            padding: 15px; 
-            outline: none; 
-            box-sizing: border-box; 
-            direction: rtl;
-            border-radius: 5px;
-            font-size: 18px;
-            text-align: center;
-            margin-bottom: 15px;
-        }
-        input::placeholder { color: #bbb; }
-
-        .btn-submit {
-            width: 100%;
-            padding: 15px;
-            background-color: #5cb85c;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-small { 
-            flex: 1; padding: 10px; background: #f0f0f0; border: 1px solid #ddd; 
-            color: #666; cursor: pointer; font-size: 12px; 
-        }
-
-        #authSection { display: block; }
-        #adminSection { display: none; }
-
-        .vhs-library-title { margin: 20px 0; font-weight: bold; text-align: center; color: #333; }
-        
-        .vhs-shelf { 
-            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 10px;
-        }
-
-        .vhs-tape {
-            background: #fff; border: 1px solid #ddd; width: 45%; padding: 10px;
-            text-align: center; border-radius: 5px; cursor: pointer; font-size: 13px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
+        button:hover { background: #0056b3; }
     </style>
 </head>
-<body> 
-
-<div class="header-title">البث المباشر المشترك</div>
-<div class="status-badge">متصل بنجاح ✅</div>
+<body>
 
 <div class="container">
-    <div class="tv-unit">
-        <div class="screen-border">
-            <div id="tap-overlay" onclick="handlePowerClick()"></div>
-            <canvas id="noise-canvas"></canvas>
-            <video id="video" controls playsinline></video>
-            
-            <div class="video-ui-extras">
-                <div class="skip-icon">10↺</div>
-                <div class="skip-icon">↻10</div>
-            </div>
-        </div>
-        
-        <div class="tv-controls">
-            <div class="power-btn" id="powerBtn" onclick="handlePowerClick()">
-                <svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
-            </div>
-        </div>
+    <h2>بث مباشر</h2>
+    <video id="video" controls autoplay playsinline></video>
+    <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
+
+    <div class="input-area">
+        <input type="text" id="videoUrl" placeholder="أدخل رابط m3u8 هنا..." 
+               value="https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264">
+        <button onclick="loadNewVideo()">تشغيل الرابط</button>
     </div>
-
-    <div class="control-panel">
-        <div class="admin-title">إدارة الفيديو والمزامنة</div>
-        
-        <div id="authSection">
-            <input type="password" id="adminPass" placeholder="أدخل كلمة السر للإدارة">
-            <button class="btn-submit" onclick="checkPassManually()">دخول المسؤول</button>
-        </div>
-        
-        <div id="adminSection">
-            <p id="adminStatusText" style="font-size: 12px; color: var(--success-green); margin-bottom: 10px;">وضع المسؤول: متصل</p>
-            <input type="text" id="videoUrl" placeholder="رابط فيديو مباشر">
-            
-            <div style="background: #f9f9f9; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                <p style="font-size: 12px; margin-bottom: 5px;">إضافة شريط جديد:</p>
-                <input type="text" id="newTapeName" placeholder="اسم الشريط" style="font-size: 14px; padding: 8px;">
-                <input type="text" id="newTapeUrl" placeholder="رابط الفيديو" style="font-size: 14px; padding: 8px;">
-                <button onclick="addNewTape()" class="btn-submit" style="font-size: 14px; padding: 8px;">+ إضافة للرف</button>
-            </div>
-
-            <div class="btn-group">
-                <button class="btn-small" style="color: red;" onclick="clearDB()">إعادة ضبط</button>
-                <button class="btn-small" onclick="adminLogout()">خروج</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="vhs-library-title">قائمة الأشرطة المتوفرة:</div>
-    <div class="vhs-shelf" id="vhsShelf"></div>
 </div>
 
 <script>
-    const canvas = document.getElementById('noise-canvas');
-    const ctx = canvas.getContext('2d');
     const video = document.getElementById('video');
-    const overlay = document.getElementById('tap-overlay');
-    const powerBtn = document.getElementById('powerBtn');
-    let noiseID, audioCtx, noiseNode, isAdmin = false;
-    let isPoweredOn = false;
-    let isRemoteUpdate = false;
-    let globalAdminPresent = false;
-    let userHasInteracted = false;
+    const status = document.getElementById('status');
+    const urlInput = document.getElementById('videoUrl');
+    let hls = null;
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-        authDomain: "videos-5e336.firebaseapp.com",
-        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-        projectId: "videos-5e336",
-        storageBucket: "videos-5e336.firebasestorage.app",
-        messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const auth = firebase.auth();
-    const syncRef = db.ref('videoSync');
-    const tapesRef = db.ref('tapesLibrary');
-
-    function checkPassManually() {
-        const pass = document.getElementById('adminPass').value;
-        if (pass.length >= 6) {
-            auth.signInWithEmailAndPassword("t@t.tt", pass).catch(err => alert("كلمة السر خاطئة"));
-        } else {
-            alert("يرجى إدخال كلمة السر");
-        }
-    }
-
-    document.addEventListener('mousedown', () => userHasInteracted = true, {once: true});
-    document.addEventListener('touchstart', () => userHasInteracted = true, {once: true});
-
-    function handlePowerClick() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، هو فقط من يتحكم بالطاقة حالياً");
+    function loadNewVideo() {
+        const videoSrc = urlInput.value.trim();
+        if (!videoSrc) {
+            alert("يرجى إدخال رابط أولاً");
             return;
         }
-        const nextState = !isPoweredOn;
-        syncRef.update({ tvPower: nextState });
-    }
 
-    function applyPowerState(state) {
-        isPoweredOn = state;
-        if (isPoweredOn) {
-            powerBtn.classList.add('active');
-            overlay.style.display = 'none';
-            initAudio();
-            syncRef.once('value', (snap) => handleSyncUpdate(snap.val()));
-        } else {
-            powerBtn.classList.remove('active');
-            overlay.style.display = 'flex';
-            video.style.display = 'none';
-            video.pause();
-            toggleStatic(false);
-            if (audioCtx) audioCtx.suspend();
-        }
-    }
+        status.style.color = "#00ff00";
+        status.innerText = "جاري تحميل البث الجديد...";
 
-    function publicEject() {
-        userHasInteracted = true;
-        if (globalAdminPresent && !isAdmin) {
-            alert("الأدمن متصل، لا يمكنك إخراج الشريط حالياً");
-            return;
-        }
-        if(!isPoweredOn) { alert("شغل التلفزيون أولاً!"); return; }
-        syncRef.set({ tvPower: true, isPlaying: false, url: null, adminPresent: globalAdminPresent });
-    }
-
-    function addNewTape() {
-        const name = document.getElementById('newTapeName').value || "شريط غير مسمى";
-        const url = document.getElementById('newTapeUrl').value;
-        if(!url) { alert("يرجى وضع رابط الفيديو أولاً"); return; }
-        tapesRef.push({ name: name, url: url, timestamp: Date.now() }).then(() => {
-            document.getElementById('newTapeName').value = "";
-            document.getElementById('newTapeUrl').value = "";
-        });
-    }
-
-    function deleteTape(key) {
-        if(confirm("حذف هذا الشريط نهائياً؟")) { tapesRef.child(key).remove(); }
-    }
-
-    tapesRef.on('value', (snap) => {
-        const shelf = document.getElementById('vhsShelf');
-        shelf.innerHTML = "";
-        const data = snap.val();
-        if(!data) return;
-
-        Object.keys(data).forEach(key => {
-            const tape = data[key];
-            const el = document.createElement('div');
-            el.className = 'vhs-tape';
-            el.innerHTML = `
-                <div style="font-weight:bold">${tape.name}</div>
-                ${isAdmin ? `<button onclick="event.stopPropagation(); deleteTape('${key}')" style="color:red; border:none; background:none; font-size:10px;">حذف</button>` : ''}
-            `;
-            el.onclick = () => {
-                userHasInteracted = true;
-                if (globalAdminPresent && !isAdmin) {
-                    alert("الأدمن متصل حالياً");
-                    return;
+        if (Hls.isSupported()) {
+            // تنظيف أي نسخة قديمة من المشغل
+            if (hls) {
+                hls.destroy();
+            }
+            hls = new Hls();
+            hls.loadSource(videoSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                status.innerText = "تم الاتصال - البث يعمل الآن";
+                video.play();
+            });
+            hls.on(Hls.Events.ERROR, function(event, data) {
+                if (data.fatal) {
+                    status.style.color = "red";
+                    status.innerText = "فشل التحميل: تأكد من صحة الرابط أو جرب متصفحاً آخر.";
                 }
-                if(!isPoweredOn) { applyPowerState(true); syncRef.update({ tvPower: true }); }
-                video.play().catch(() => {}); 
-                syncRef.update({ 
-                    url: tape.url, 
-                    currentTime: 0, 
-                    isPlaying: true, 
-                    adminPresent: isAdmin,
-                    lastUpdated: Date.now() 
-                });
-            };
-            shelf.appendChild(el);
-        });
-    });
-
-    function initAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-
-    function startStaticSound() {
-        if (!audioCtx || noiseNode || !isPoweredOn) return;
-        const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer; noiseNode.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.04;
-        noiseNode.connect(gainNode); gainNode.connect(audioCtx.destination);
-        noiseNode.start();
-    }
-
-    function stopStaticSound() { if (noiseNode) { try { noiseNode.stop(); } catch(e) {} noiseNode = null; } }
-
-    function loopNoise() {
-        if (!isPoweredOn) return;
-        canvas.width = 200; canvas.height = 150;
-        const idata = ctx.createImageData(canvas.width, canvas.height);
-        const b32 = new Uint32Array(idata.data.buffer);
-        for (let i = 0; i < b32.length; i++) b32[i] = ((Math.random() * 255) | 0) << 24 | (Math.random() * 0xffffff);
-        ctx.putImageData(idata, 0, 0);
-        noiseID = requestAnimationFrame(loopNoise);
-    }
-
-    function toggleStatic(show) {
-        if (show && isPoweredOn) {
-            canvas.style.display = 'block';
-            if (!noiseID) loopNoise();
-            stopStaticSound(); startStaticSound();
-        } else {
-            canvas.style.display = 'none';
-            cancelAnimationFrame(noiseID); noiseID = null;
-            stopStaticSound();
-        }
-    }
-
-    video.onended = () => {
-        if (!isRemoteUpdate && isPoweredOn) {
-            syncRef.update({ isPlaying: false, currentTime: 0, url: null });
-        }
-    };
-
-    video.onpause = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ isPlaying: false, currentTime: video.currentTime });
-        }
-    };
-
-    video.onplay = () => {
-        if (!isRemoteUpdate && isPoweredOn && userHasInteracted) {
-            if (globalAdminPresent && !isAdmin) return;
-            syncRef.update({ 
-                isPlaying: true, 
-                currentTime: video.currentTime,
-                lastUpdated: Date.now() - (video.currentTime * 1000) 
+            });
+        } 
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoSrc;
+            video.addEventListener('loadedmetadata', function() {
+                video.play();
+                status.innerText = "تم الاتصال - البث يعمل الآن";
             });
         }
-    };
-
-    function handleSyncUpdate(data) {
-        if (!data) return;
-        if (data.tvPower !== undefined && data.tvPower !== isPoweredOn) { applyPowerState(data.tvPower); }
-        globalAdminPresent = data.adminPresent || false;
-        if (!isPoweredOn) return;
-        if (!data.url) {
-            video.style.display = 'none'; video.pause();
-            toggleStatic(true); return;
-        }
-        isRemoteUpdate = true;
-        video.style.display = 'block'; 
-        toggleStatic(false); 
-        if (!video.src.includes(data.url)) { loadVideo(data.url); }
-        let targetTime = data.currentTime;
-        if (data.isPlaying && data.lastUpdated) {
-            const elapsed = (Date.now() - data.lastUpdated) / 1000;
-            targetTime = elapsed > 0 ? elapsed : data.currentTime;
-        }
-        if (data.isPlaying) { 
-            video.play().catch(error => { video.muted = true; video.play(); }); 
-        } else { video.pause(); }
-        const timeDiff = Math.abs(video.currentTime - targetTime);
-        if (timeDiff > 2) video.currentTime = targetTime;
-        setTimeout(() => { isRemoteUpdate = false; }, 200);
     }
 
-    auth.onAuthStateChanged(user => {
-        if (user && user.email === "t@t.tt") {
-            isAdmin = true;
-            userHasInteracted = true;
-            document.getElementById('authSection').style.display = 'none';
-            document.getElementById('adminSection').style.display = 'block';
-            syncRef.update({ adminPresent: true });
-            video.ontimeupdate = () => {
-                if (!video.paused && !isRemoteUpdate && isAdmin) {
-                    syncRef.update({ 
-                        currentTime: video.currentTime, 
-                        lastUpdated: Date.now() - (video.currentTime * 1000),
-                        adminPresent: true 
-                    });
-                }
-            };
-            window.addEventListener('beforeunload', () => { syncRef.update({ adminPresent: false }); });
-        }
-    });
-
-    document.getElementById('videoUrl').addEventListener('change', (e) => {
-        const val = e.target.value.trim();
-        if (val.startsWith('http')) {
-            syncRef.update({ url: val, currentTime: 0, isPlaying: true, adminPresent: isAdmin, lastUpdated: Date.now() });
-            e.target.value = "";
-        }
-    });
-
-    syncRef.on('value', (snap) => handleSyncUpdate(snap.val()));
-
-    let hls;
-    function loadVideo(url) {
-        if (hls) hls.destroy();
-        if (url.includes('.m3u8')) {
-            if (Hls.isSupported()) { hls = new Hls(); hls.loadSource(url); hls.attachMedia(video); } 
-            else { video.src = url; }
-        } else { video.src = url; }
-    }
-
-    function clearDB() { if (confirm("إعادة ضبط النظام؟")) syncRef.set({ tvPower: false, adminPresent: isAdmin }); }
-    function adminLogout() { syncRef.update({ adminPresent: false }); auth.signOut().then(() => location.reload()); }
+    // تشغيل الرابط الافتراضي عند فتح الصفحة لأول مرة
+    window.onload = loadNewVideo;
 </script>
+
 </body>
 </html>
