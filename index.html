@@ -103,7 +103,7 @@
     </div>
 
     <script>
-        // 1. إعدادات Firebase الخاصة بك (لم يتم لمسها)
+        // 1. إعدادات Firebase الخاصة بك
         var firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -121,6 +121,7 @@
         var hls = new Hls();
         var isAdmin = false;
 
+        // وظيفة تشغيل الفيديو الذكية (HLS + MP4)
         function playMedia(url) {
             if (!url) return;
             if (Hls.isSupported() && (url.includes('m3u8') || !url.endsWith('.mp4'))) {
@@ -141,29 +142,35 @@
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data && data.url) {
+                // تحديث الرابط إذا كان مختلفاً
                 if (videoElement.dataset.currentSrc !== data.url) {
                     videoElement.dataset.currentSrc = data.url;
                     playMedia(data.url);
                 }
                 
+                // المزامنة للمشاهدين فقط
                 if (!isAdmin) {
-                    // مزامنة حالة الإيقاف والتشغيل (فورية)
+                    // حساب زمن وصول المعلومة لتعويض اللاق
+                    var latency = (Date.now() - data.lastAction) / 1000;
+                    var targetTime = data.currentTime + (latency > 0 && latency < 2 ? latency : 0);
+
+                    // مزامنة حالة الوقوف والتشغيل فوراً
                     if (data.paused && !videoElement.paused) {
                         videoElement.pause();
                     } else if (!data.paused && videoElement.paused) {
                         videoElement.play().catch(function(){});
                     }
 
-                    // مزامنة الوقت بدقة عالية (إذا زاد الفرق عن 0.5 ثانية)
-                    if (Math.abs(videoElement.currentTime - data.currentTime) > 0.5) {
-                        videoElement.currentTime = data.currentTime;
+                    // المزامنة إذا كان الفرق أكثر من نصف ثانية
+                    if (Math.abs(videoElement.currentTime - targetTime) > 0.5) {
+                        videoElement.currentTime = targetTime;
                     }
                 }
                 document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
             }
         });
 
-        // إرسال الأوامر (للإدارة فقط)
+        // إرسال الأوامر (للمدير فقط)
         function broadcastStatus() {
             if (isAdmin) {
                 videoRef.update({
@@ -174,20 +181,19 @@
             }
         }
 
-        // ربط الأحداث لضمان اللحظية المطلقة
+        // مستمعات الأحداث - الإرسال فوري عند الضغط
         videoElement.addEventListener('play', broadcastStatus);
         videoElement.addEventListener('pause', broadcastStatus);
         videoElement.addEventListener('seeking', broadcastStatus);
-        videoElement.addEventListener('seeked', broadcastStatus);
 
-        // تحديث دوري "سريع جداً" للأدمن لضمان عدم حدوث لاق
+        // تحديث دوري سريع جداً (كل 400ms) لضمان عدم وجود لاق
         setInterval(function() {
             if (isAdmin && !videoElement.paused) {
                 broadcastStatus();
             }
-        }, 300); // تحديث كل 300ms لضمان المزامنة اللحظية
+        }, 400);
 
-        // تسجيل الدخول
+        // الأزرار
         document.getElementById('loginBtn').addEventListener('click', function() {
             if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
@@ -198,7 +204,6 @@
             }
         });
 
-        // تحديث الرابط
         document.getElementById('updateBtn').addEventListener('click', function() {
             var url = document.getElementById('videoUrl').value;
             if (url && isAdmin) {
