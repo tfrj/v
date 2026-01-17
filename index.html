@@ -3,81 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل فيديو بسيط</title>
+    <title>مشغل فيديو احترافي</title>
     <style>
+        :root {
+            --primary-color: #00ff88;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+        }
+
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 20px;
-            background-color: #f4f4f9;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
         }
 
         .video-container {
             width: 100%;
-            max-width: 600px;
+            max-width: 750px;
             background: #000;
-            border-radius: 8px;
+            border-radius: 15px;
             overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
         }
 
         video {
             width: 100%;
             display: block;
+            outline: none;
         }
 
         .controls-area {
             width: 100%;
-            max-width: 600px;
-            margin-top: 20px;
+            max-width: 750px;
+            margin-top: 25px;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
         }
 
         input[type="text"] {
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            padding: 15px;
+            border: 2px solid #334155;
+            border-radius: 10px;
             font-size: 16px;
+            background: #0f172a;
+            color: white;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            outline: none;
         }
 
         button {
-            padding: 12px;
-            background-color: #25d366;
-            color: white;
+            padding: 15px;
+            background: linear-gradient(135deg, #00ff88 0%, #00bd68 100%);
+            color: #062016;
             border: none;
-            border-radius: 5px;
-            font-size: 16px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: transform 0.2s, opacity 0.3s;
+        }
+
+        button:active {
+            transform: scale(0.98);
         }
 
         button:hover {
-            background-color: #128c7e;
+            opacity: 0.9;
         }
     </style>
 </head>
 <body>
 
+    <h2 style="margin-bottom: 20px;">نظام البث الموحد</h2>
+
     <div class="video-container">
-        <video id="myPlayer" controls playsinline poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
+        <video id="myPlayer" controls playsinline poster="https://via.placeholder.com/750x420/000/fff?text=Waiting+for+Video+Link...">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
-        <button onclick="loadVideo()">تشغيل الفيديو</button>
+        <input type="text" id="videoUrl" placeholder="أدخل رابط الفيديو (MP4, WebM)...">
+        <button onclick="loadVideo()">تحديث البث للجميع</button>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -89,22 +118,19 @@
             measurementId: "G-2H4SJNLD1R"
         };
 
-        // تهيئة Firebase
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
         const database = firebase.database();
         const videoRef = database.ref('currentVideo');
 
-        // وظيفتك الأصلية مع إضافة سطر المزامنة
         function loadVideo() {
             const url = document.getElementById('videoUrl').value;
             const player = document.getElementById('myPlayer');
             
             if (url) {
-                // حفظ الرابط في Firebase ليبقى متاحاً حتى بعد التحديث
+                // حفظ في Firebase للمزامنة والاستمرارية بعد التحديث
                 videoRef.set({ url: url }); 
-                
                 player.src = url;
                 player.play();
             } else {
@@ -112,23 +138,19 @@
             }
         }
 
-        // استقبال التحديثات (وهي التي تعمل عند تحديث الصفحة أيضاً)
+        // الاستماع للتغييرات (يعمل عند التحميل الأول وعند تحديث أي مستخدم للرابط)
         videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
             const player = document.getElementById('myPlayer');
             const urlInput = document.getElementById('videoUrl');
 
             if (data && data.url) {
-                // إذا كان الرابط في قاعدة البيانات مختلف عن المشغل الحالي (يحدث عند التحديث)
                 if (player.src !== data.url) {
                     player.src = data.url;
                     urlInput.value = data.url;
-                    
-                    // محاولة التشغيل التلقائي بعد التحديث
                     player.load();
-                    player.play().catch(e => {
-                        console.log("التشغيل التلقائي يتطلب تفاعل المستخدم أولاً في بعض المتصفحات");
-                    });
+                    // محاولة التشغيل التلقائي
+                    player.play().catch(e => console.log("Auto-play requires user interaction"));
                 }
             }
         });
