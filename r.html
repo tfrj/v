@@ -3,64 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل البث المباشر - تلقائي</title>
+    <title>مشغل البث المباشر</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-            authDomain: "videos-5e336.firebaseapp.com",
-            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-            projectId: "videos-5e336",
-            storageBucket: "videos-5e336.firebasestorage.app",
-            messagingSenderId: "300218651134",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const video = document.getElementById('video');
-        const status = document.getElementById('status');
-        let hls = new Hls();
-
-        // الاستماع للتغييرات في قاعدة البيانات
-        const streamRef = ref(db, 'currentStream');
-        onValue(streamRef, (snapshot) => {
-            const newUrl = snapshot.val();
-            if (newUrl) {
-                playStream(newUrl);
-                status.innerText = "تم تحديث البث تلقائياً!";
-                status.style.color = "#00ff88";
-            }
-        });
-
-        function playStream(url) {
-            if (Hls.isSupported()) {
-                hls.destroy(); // تنظيف المشغل القديم
-                hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url;
-                video.play();
-            }
-        }
-    </script>
+    
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        .container { width: 95%; max-width: 800px; text-align: center; }
-        video { width: 100%; border-radius: 10px; background: #111; box-shadow: 0 0 20px rgba(233, 30, 99, 0.2); }
-        .status { margin-top: 10px; font-size: 14px; color: #aaa; }
+        .container { width: 100%; max-width: 800px; text-align: center; }
+        video { width: 100%; border: 2px solid #333; border-radius: 10px; background: #111; }
+        .status { margin-top: 10px; color: #00ff00; font-size: 14px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>بث مباشر متصل بالتحكم</h2>
-        <video id="video" controls autoplay playsinline></video>
-        <div id="status" class="status">بانتظار الرابط من لوحة التحكم...</div>
-    </div>
+
+<div class="container">
+    <h2>بث مباشر</h2>
+    <video id="video" controls autoplay playsinline></video>
+    <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
+</div>
+
+<script type="module">
+    // استيراد Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    // إعداداتك الخاصة
+    const firebaseConfig = {
+      apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+      authDomain: "videos-5e336.firebaseapp.com",
+      databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+      projectId: "videos-5e336",
+      storageBucket: "videos-5e336.firebasestorage.app",
+      messagingSenderId: "300218651134",
+      appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    let hls = new Hls();
+
+    // الاستماع للرابط من Firebase
+    const streamRef = ref(db, 'currentStream');
+    onValue(streamRef, (snapshot) => {
+        const videoSrc = snapshot.val();
+        
+        if (videoSrc) {
+            if (Hls.isSupported()) {
+                hls.destroy(); // تنظيف القديم لتشغيل الجديد
+                hls = new Hls();
+                hls.loadSource(videoSrc);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    status.innerText = "تم الاتصال - البث يعمل الآن";
+                    video.play();
+                });
+            } 
+            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = videoSrc;
+                video.addEventListener('loadedmetadata', function() {
+                    video.play();
+                });
+            }
+        }
+    });
+</script>
+
 </body>
 </html>
