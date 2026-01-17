@@ -1,111 +1,82 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو المشترك</title>
-    <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; background-color: #f4f4f9; margin: 0; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 90%; max-width: 600px; text-align: center; margin-bottom: 20px; }
-        input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
-        button { padding: 12px 25px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        video { width: 100%; border-radius: 8px; background: #000; min-height: 200px; }
-        #adminSection { display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
-        .status { color: #666; font-size: 0.9em; margin-bottom: 10px; }
-    </style>
-</head>
-<body>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-    <div class="card">
-        <h2>البث المباشر</h2>
-        <p class="status" id="connectionStatus">جاري التحميل...</p>
-        <video id="myPlayer" controls autoplay playsinline>
-            <source src="" type="video/mp4">
-            متصفحك لا يدعم مشغل الفيديو.
-        </video>
-    </div>
+<script>
+    var firebaseConfig = {
+        apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+        authDomain: "videos-5e336.firebaseapp.com",
+        databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+        projectId: "videos-5e336",
+        storageBucket: "videos-5e336.firebasestorage.app",
+        messagingSenderId: "300218651134",
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+    };
 
-    <div class="card">
-        <div id="loginSection">
-            <h3>إدارة الفيديو</h3>
-            <input type="password" id="passwordInput" placeholder="أدخل كلمة السر">
-            <br>
-            <button id="loginBtn">دخول</button>
-        </div>
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+    var videoRef = db.ref('sharedVideo');
+    var videoElement = document.getElementById('myPlayer');
+    var isAdmin = false; // لتحديد من يرسل أوامر التحكم
 
-        <div id="adminSection">
-            <p style="color: green; font-weight: bold;">وضع الإدارة نشط</p>
-            <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو (MP4) هنا">
-            <br>
-            <button id="updateBtn">تحديث عند الجميع</button>
-        </div>
-    </div>
-
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <script>
-        // 1. إعدادات Firebase
-        var firebaseConfig = {
-            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
-            authDomain: "videos-5e336.firebaseapp.com",
-            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
-            projectId: "videos-5e336",
-            storageBucket: "videos-5e336.firebasestorage.app",
-            messagingSenderId: "300218651134",
-            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
-        };
-
-        // 2. تشغيل Firebase
-        firebase.initializeApp(firebaseConfig);
-        var db = firebase.database();
-        var videoRef = db.ref('sharedVideo');
-
-        // 3. الاستماع للتغييرات (تحديث الفيديو)
-        videoRef.on('value', function(snapshot) {
-            var data = snapshot.val();
-            if (data && data.url) {
-                var video = document.getElementById('myPlayer');
-                if (video.src !== data.url) {
-                    video.src = data.url;
-                    video.load();
-                }
-                document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
-            } else {
-                document.getElementById('connectionStatus').innerText = "متصل - بانتظار فيديو...";
+    // 1. استقبال التحديثات (الرابط + وقت التشغيل + الحالة)
+    videoRef.on('value', function(snapshot) {
+        var data = snapshot.val();
+        if (data) {
+            // تحديث الرابط إذا تغير
+            if (videoElement.src !== data.url) {
+                videoElement.src = data.url;
+                videoElement.load();
             }
-        });
 
-        // 4. برمجة الأزرار بطريقة AddEventListener (أضمن لمتصفح Puffin)
-        
-        // زر الدخول
-        document.getElementById('loginBtn').addEventListener('click', function() {
-            var pass = document.getElementById('passwordInput').value;
-            if (pass === "1234") {
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('adminSection').style.display = 'block';
-            } else {
-                alert("كلمة السر خاطئة!");
+            // مزامنة وقت الفيديو (إذا كان الفارق أكثر من ثانية)
+            if (Math.abs(videoElement.currentTime - data.currentTime) > 1.5) {
+                videoElement.currentTime = data.currentTime;
             }
-        });
 
-        // زر التحديث
-        document.getElementById('updateBtn').addEventListener('click', function() {
-            var newUrl = document.getElementById('videoUrl').value;
-            if (newUrl) {
-                videoRef.set({
-                    url: newUrl,
-                    time: Date.now()
-                }).then(function() {
-                    alert("تم إرسال الفيديو لجميع الأصدقاء!");
-                }).catch(function(err) {
-                    alert("خطأ في القاعدة: " + err.message);
-                });
-            } else {
-                alert("يرجى وضع رابط أولاً");
-            }
-        });
-    </script>
+            // مزامنة حالة التشغيل/التوقف
+            if (data.paused && !videoElement.paused) videoElement.pause();
+            if (!data.paused && videoElement.paused) videoElement.play().catch(function(){});
+            
+            document.getElementById('connectionStatus').innerText = "متصل - مزامنة لحظية نشطة ✅";
+        }
+    });
 
-</body>
-</html>
+    // 2. إرسال التحديثات (يتم استدعاؤها فقط من المدير)
+    function syncStatus() {
+        if (!isAdmin) return;
+        videoRef.update({
+            currentTime: videoElement.currentTime,
+            paused: videoElement.paused,
+            lastUpdated: Date.now()
+        });
+    }
+
+    // مراقبة حركة الفيديو عند المدير لإرسالها للجميع
+    videoElement.onplay = syncStatus;
+    videoElement.onpause = syncStatus;
+    videoElement.onseeking = syncStatus;
+
+    // تحديث الرابط الجديد
+    document.getElementById('updateBtn').addEventListener('click', function() {
+        var newUrl = document.getElementById('videoUrl').value;
+        if (newUrl) {
+            videoRef.set({
+                url: newUrl,
+                currentTime: 0,
+                paused: false,
+                lastUpdated: Date.now()
+            });
+            alert("تم إرسال الفيديو والمزامنة!");
+        }
+    });
+
+    // تسجيل الدخول كمسؤول
+    document.getElementById('loginBtn').addEventListener('click', function() {
+        var pass = document.getElementById('passwordInput').value;
+        if (pass === "1234") {
+            isAdmin = true; // تفعيل صلاحية التحكم بالمزامنة
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'block';
+        }
+    });
+</script>
