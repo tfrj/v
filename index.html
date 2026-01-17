@@ -8,22 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
         .container { width: 100%; max-width: 800px; text-align: center; }
         video { width: 100%; border: 2px solid #333; border-radius: 10px; background: #111; }
-        .status { margin: 10px 0; color: #00ff00; font-size: 14px; }
-        
-        /* تنسيق مكان إضافة الرابط */
-        .input-area { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-        input[type="text"] { 
-            padding: 10px; width: 70%; border-radius: 5px; border: 1px solid #444; 
-            background: #222; color: #fff; outline: none; 
-        }
-        button { 
-            padding: 10px 20px; border-radius: 5px; border: none; 
-            background: #007bff; color: white; cursor: pointer; font-weight: bold;
-        }
-        button:hover { background: #0056b3; }
+        .status { margin-top: 10px; color: #00ff00; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -32,60 +20,36 @@
     <h2>بث مباشر</h2>
     <video id="video" controls autoplay playsinline></video>
     <div id="status" class="status">جاري الاتصال بالسيرفر...</div>
-
-    <div class="input-area">
-        <input type="text" id="videoUrl" placeholder="أدخل رابط m3u8 هنا..." 
-               value="https://shd-gcp-live.edgenextcdn.net/live/bitmovin-spacetoon/d8382fb9ab4b2307058f12c7ea90db54/index.m3u8?aws.manifestfilter=video_height:144-720;video_codec:H264&video_height=144-720&video_codec=H264">
-        <button onclick="loadNewVideo()">تشغيل الرابط</button>
-    </div>
 </div>
 
 <script>
     const video = document.getElementById('video');
     const status = document.getElementById('status');
-    const urlInput = document.getElementById('videoUrl');
-    let hls = null;
+    // الرابط الذي أرسلته
+    const videoSrc = 'https://abra--5e4bd524.api.cosmic-crab.buzz/c08625d599d38e7450b5a8aae1c1c93ad3eb6eb5/%D9%85%D9%88%D9%83%D8%A7%20%D9%85%D9%88%D9%83%D8%A7%20%281993%29/%5BMo7tas%5D%20%D9%85%D9%88%D9%83%D8%A7%20%D9%85%D9%88%D9%83%D8%A7%20-%2001%20%5B720p%5D%20%28Darkulime%29.mkv?api-key=8acbcf1e-732c-4574-a3bf-27e6a85b86f1&download=true&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Njg2OTkxMTEsInJhdGUiOiI1TSIsInJvbGUiOiJmcmVlIiwic2Vzc2lvbklEIjoiTVRjMk56WTVORE16Tlh4T2QzZEJUa1pqTVZFd1VrVlZSVXBaVWxSU1UxRlVTa2xPTUhjeFZWWlNTRk5GYUV0TmEyc3lWMFZ6TVU1clNYcFZSVlpQVjJ4Q1YxTXhWa3RSTUhSaFZVUk9TRmRWZUVOU1ZVVTlmRnhmUWN4MnZlU0RsZ0xQd1dQTW1FQ1JBMk9TenNaV0hIRG1TU1hxMXNaUSIsImRvbWFpbiI6IndlYnRvci5pbyIsImFnZW50IjoiTW96aWxsYS81LjAgKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTBfMTVfNykgQXBwbGVXZWJLaXQvNjA1LjEuMTUgKEtIVE1MLCBsaWtlIEdlY2tvKSBWZXJzaW9uLzI2LjEgU2FmYXJpLzYwNS4xLjE1IiwicmVtb3RlQWRkcmVzcyI6IjIwMDE6MTZhMjpjMTUxOjY0NDU6NWM2MjozZjE4OmRlMDA6YTM4MSJ9.vg_HTUwQnJRJiK_nAqkzycCg1iWSg93Hs-0QDjBoCx4';
 
-    function loadNewVideo() {
-        const videoSrc = urlInput.value.trim();
-        if (!videoSrc) {
-            alert("يرجى إدخال رابط أولاً");
-            return;
-        }
-
-        status.style.color = "#00ff00";
-        status.innerText = "جاري تحميل البث الجديد...";
-
-        if (Hls.isSupported()) {
-            // تنظيف أي نسخة قديمة من المشغل
-            if (hls) {
-                hls.destroy();
+    if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(videoSrc);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            status.innerText = "تم الاتصال - البث يعمل الآن";
+            video.play();
+        });
+        hls.on(Hls.Events.ERROR, function(event, data) {
+            if (data.fatal) {
+                status.style.color = "red";
+                status.innerText = "فشل التحميل: الرابط قد يحتاج لتحديث أو المتصفح يمنع الوصول.";
             }
-            hls = new Hls();
-            hls.loadSource(videoSrc);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                status.innerText = "تم الاتصال - البث يعمل الآن";
-                video.play();
-            });
-            hls.on(Hls.Events.ERROR, function(event, data) {
-                if (data.fatal) {
-                    status.style.color = "red";
-                    status.innerText = "فشل التحميل: تأكد من صحة الرابط أو جرب متصفحاً آخر.";
-                }
-            });
-        } 
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = videoSrc;
-            video.addEventListener('loadedmetadata', function() {
-                video.play();
-                status.innerText = "تم الاتصال - البث يعمل الآن";
-            });
-        }
+        });
+    } 
+    // لدعم متصفحات آيفون (Safari) التي تدعم الصيغة تلقائياً
+    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = videoSrc;
+        video.addEventListener('loadedmetadata', function() {
+            video.play();
+        });
     }
-
-    // تشغيل الرابط الافتراضي عند فتح الصفحة لأول مرة
-    window.onload = loadNewVideo;
 </script>
 
 </body>
