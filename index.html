@@ -136,7 +136,7 @@
             }
         }
 
-        // استقبال التحديثات اللحظية
+        // استقبال التحديثات
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data && data.url) {
@@ -146,14 +146,14 @@
                 }
                 
                 if (!isAdmin) {
-                    // المزامنة اللحظية للحالة
+                    // مزامنة حالة الإيقاف/التشغيل
                     if (data.paused && !videoElement.paused) {
                         videoElement.pause();
                     } else if (!data.paused && videoElement.paused) {
                         videoElement.play().catch(function(){});
                     }
                     
-                    // مزامنة الوقت بدقة عالية
+                    // مزامنة الوقت فقط إذا كان الفرق أكثر من ثانية
                     if (Math.abs(videoElement.currentTime - data.currentTime) > 1) {
                         videoElement.currentTime = data.currentTime;
                     }
@@ -162,7 +162,7 @@
             }
         });
 
-        // إرسال الحالة (للأدمن)
+        // إرسال الأوامر (للإدارة)
         function broadcastStatus() {
             if (isAdmin) {
                 videoRef.update({
@@ -173,17 +173,11 @@
             }
         }
 
-        // ربط الأحداث لضمان الاستجابة اللحظية
-        videoElement.addEventListener('play', broadcastStatus);
-        videoElement.addEventListener('pause', broadcastStatus);
-        videoElement.addEventListener('seeking', broadcastStatus);
+        // استخدام الأحداث المباشرة فقط لسرعة الاستجابة
+        videoElement.onplay = broadcastStatus;
+        videoElement.onpause = broadcastStatus;
+        videoElement.onseeking = broadcastStatus;
 
-        // تحديث مستمر للأدمن كل ثانية
-        setInterval(() => {
-            if(isAdmin && !videoElement.paused) broadcastStatus();
-        }, 1000);
-
-        // الدخول
         document.getElementById('loginBtn').addEventListener('click', function() {
             if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
@@ -194,7 +188,6 @@
             }
         });
 
-        // تحديث الرابط
         document.getElementById('updateBtn').addEventListener('click', function() {
             var url = document.getElementById('videoUrl').value;
             if (url && isAdmin) {
