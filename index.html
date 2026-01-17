@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل فيديو بسيط</title>
+    <title>مشغل فيديو متزامن (بث مباشر)</title>
     <style>
         body {
             font-family: sans-serif;
@@ -63,21 +63,20 @@
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
+        <video id="myPlayer" controls autoplay muted poster="https://via.placeholder.com/600x340?text=Waiting+for+Video">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
-        <button onclick="loadVideo()">تشغيل الفيديو</button>
+        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا...">
+        <button onclick="loadVideo()">تحديث الرابط يدوياً</button>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
     <script>
-        // إعدادات Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -89,44 +88,58 @@
             measurementId: "G-2H4SJNLD1R"
         };
 
-        // تهيئة Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const videoRef = database.ref('currentVideo');
 
-        // --- التعديل الجديد: التشغيل التلقائي عند اللصق أو الكتابة ---
         const urlInput = document.getElementById('videoUrl');
+        
+        // التشغيل فور اللصق
         urlInput.addEventListener('input', function() {
             if (this.value.trim() !== "") {
                 loadVideo();
             }
         });
-        // -------------------------------------------------------
 
-        // وظيفة التشغيل الأصلية
         function loadVideo() {
-            const url = document.getElementById('videoUrl').value;
-            
+            const url = urlInput.value;
             if (url) {
                 videoRef.set({
                     url: url,
-                    timestamp: Date.now()
+                    startTime: Date.now() // نسجل لحظة البدء بدقة
                 });
             }
         }
 
-        // الاستماع للتغييرات في Firebase
+        // الاستماع للتغييرات والمزامنة الزمنية
         videoRef.on('value', (snapshot) => {
             const data = snapshot.val();
             const player = document.getElementById('myPlayer');
             
             if (data && data.url) {
+                const now = Date.now();
+                const startAt = data.startTime;
+                const diffInSeconds = (now - startAt) / 1000; // تحويل الفرق لثواني
+
+                // إذا كان الرابط جديداً أو تم تحديث الصفحة
                 if (player.src !== data.url) {
                     player.src = data.url;
-                    player.play().catch(error => {
-                        console.log("التشغيل التلقائي يتطلب تفاعل المستخدم أولاً أو الرابط غير مدعوم");
-                    });
-                    document.getElementById('videoUrl').value = data.url;
+                    urlInput.value = data.url;
+                }
+
+                // ميزة "البث": تقديم الفيديو للوقت الحالي
+                // ننتظر تحميل الميتا لنتأكد من جاهزية المشغل للتقديم
+                player.onloadedmetadata = function() {
+                    if (diffInSeconds > 0) {
+                        player.currentTime = diffInSeconds;
+                    }
+                    player.play().catch(e => console.log("خطأ في التشغيل: ارفع الكتم أولاً"));
+                };
+                
+                // للحالات التي يكون الرابط فيها محملاً مسبقاً (تحديث الصفحة)
+                if (player.readyState >= 1) {
+                    player.currentTime = diffInSeconds;
+                    player.play().catch(e => console.log("خطأ في التشغيل"));
                 }
             }
         });
