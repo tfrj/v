@@ -3,30 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة اللحظية - Puffin</title>
-    
+    <title>Puffin Sync Player - Pro</title>
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-    
     <style>
-        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { width: 90%; max-width: 800px; }
-        /* تحسين استجابة المشغل في Puffin */
-        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .container { width: 90%; max-width: 800px; text-align: center; }
+        
+        /* تصميم خانة الرابط */
+        .url-bar { display: flex; gap: 10px; margin-bottom: 20px; background: #1e1e1e; padding: 10px; border-radius: 8px; border: 1px solid #333; }
+        input { flex: 1; background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 5px; outline: none; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+
+        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <video id="player" playsinline controls>
-        <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4" />
-    </video>
+    <h3>مشغل المزامنة اللحظية (Puffin Optimized)</h3>
+    
+    <div class="url-bar">
+        <input type="text" id="videoUrl" placeholder="الصق رابط الفيديو المباشر هنا (mp4)...">
+        <button id="updateBtn">تحديث للكل</button>
+    </div>
+
+    <div id="player-container">
+        <video id="player" playsinline controls>
+            <source src="" type="video/mp4" />
+        </video>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -38,62 +50,64 @@
         measurementId: "G-2H4SJNLD1R"
     };
 
-    // تهيئة Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    // تهيئة المشغل
     const video = document.getElementById('player');
-    let isRemoteUpdate = false; // لمنع التكرار اللانهائي
+    const urlInput = document.getElementById('videoUrl');
+    const updateBtn = document.getElementById('updateBtn');
+    let isRemoteUpdate = false;
 
-    // 1. استقبال التحديثات من الآخرين
+    // --- 1. وظيفة تغيير الرابط للجميع ---
+    updateBtn.onclick = () => {
+        const newUrl = urlInput.value.trim();
+        if (newUrl) {
+            update(videoRef, { 
+                url: newUrl, 
+                status: "paused", 
+                time: 0 
+            });
+        }
+    };
+
+    // --- 2. الاستماع للتغييرات (الرابط + الوقت + الحالة) ---
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
             isRemoteUpdate = true;
-            
-            // مزامنة الوقت إذا كان الفارق أكثر من ثانية
-            if (Math.abs(video.currentTime - data.time) > 1.5) {
+
+            // تغيير الرابط إذا كان مختلفاً
+            if (data.url && video.src !== data.url) {
+                video.src = data.url;
+                video.load();
+            }
+
+            // مزامنة الوقت
+            if (Math.abs(video.currentTime - data.time) > 2) {
                 video.currentTime = data.time;
             }
 
-            // مزامنة التشغيل والتوقف
+            // مزامنة التشغيل
             if (data.status === "playing" && video.paused) {
-                video.play().catch(e => console.log("تحتاج للتفاعل مع الصفحة أولاً"));
+                video.play().catch(() => {});
             } else if (data.status === "paused" && !video.paused) {
                 video.pause();
             }
-            
-            setTimeout(() => { isRemoteUpdate = false; }, 500);
+
+            setTimeout(() => { isRemoteUpdate = false; }, 600);
         }
     });
 
-    // 2. إرسال الأوامر عند ضغطك على الأزرار
-    video.onplay = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "playing", time: video.currentTime });
-        }
-    };
-
-    video.onpause = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "paused", time: video.currentTime });
-        }
-    };
-
-    // مزامنة عند تحريك شريط الوقت
-    video.onseeked = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { time: video.currentTime });
-        }
-    };
+    // --- 3. إرسال الأوامر عند التحكم بالمشغل ---
+    video.onplay = () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: video.currentTime }); };
+    video.onpause = () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: video.currentTime }); };
+    video.onseeked = () => { if (!isRemoteUpdate) update(videoRef, { time: video.currentTime }); };
 
 </script>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 <script>
-    // تشغيل التنسيق الجمالي للمشغل
     const player = new Plyr('#player');
 </script>
 
