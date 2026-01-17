@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة اللحظية</title>
+    <title>Puffin Sync Player</title>
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <style>
         body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -23,7 +23,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, update, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -43,46 +43,45 @@
 
     let isRemoteUpdate = false;
 
-    // استقبال التحديثات من الآخرين
+    // 1. استقبال المزامنة اللحظية
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-            isRemoteUpdate = true;
-            
-            // مزامنة الوقت إذا كان الفرق كبيراً
-            if (Math.abs(video.currentTime - data.time) > 2) {
-                video.currentTime = data.time;
-            }
-
+        if (data && !isRemoteUpdate) {
             // مزامنة حالة التشغيل
             if (data.status === "playing" && video.paused) {
-                video.play().catch(() => console.log("تفاعل مع الصفحة أولاً"));
+                video.play().catch(() => {});
             } else if (data.status === "paused" && !video.paused) {
                 video.pause();
             }
-            
-            setTimeout(() => { isRemoteUpdate = false; }, 600);
+
+            // مزامنة الوقت اللحظية (تصحيح إذا زاد الفرق عن ثانية واحدة)
+            const timeDiff = Math.abs(video.currentTime - data.time);
+            if (timeDiff > 1) {
+                video.currentTime = data.time;
+            }
         }
     });
 
-    // إرسال التحديثات للجميع عند تغيير الحالة يدوياً
-    video.onplay = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "playing", time: video.currentTime });
+    // 2. إرسال الوقت "كل ثانية" لضمان المزامنة اللحظية للكل
+    setInterval(() => {
+        if (!video.paused && !isRemoteUpdate) {
+            update(videoRef, { 
+                time: video.currentTime,
+                status: "playing",
+                lastUpdated: serverTimestamp() 
+            });
         }
+    }, 1000); 
+
+    // 3. إرسال أوامر التشغيل والايقاف فوراً
+    video.onplay = () => { update(videoRef, { status: "playing", time: video.currentTime }); };
+    video.onpause = () => { update(videoRef, { status: "paused", time: video.currentTime }); };
+    video.onseeking = () => { isRemoteUpdate = true; }; // منع التعارض أثناء السحب
+    video.onseeked = () => { 
+        update(videoRef, { time: video.currentTime });
+        setTimeout(() => { isRemoteUpdate = false; }, 500);
     };
 
-    video.onpause = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "paused", time: video.currentTime });
-        }
-    };
-
-    video.onseeked = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { time: video.currentTime });
-        }
-    };
 </script>
 </body>
 </html>
