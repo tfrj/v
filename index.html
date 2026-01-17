@@ -3,27 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة اللحظية - Puffin</title>
-    
+    <title>مشغل Puffin المستقر</title>
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-    
     <style>
         body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { width: 90%; max-width: 800px; }
-        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .container { width: 95%; max-width: 800px; }
+        .plyr { border-radius: 12px; overflow: hidden; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <video id="player" playsinline controls>
-        <source src="" type="video/mp4" id="videoSource" />
+    <video id="player" playsinline controls data-poster="">
+        <source src="" type="video/mp4" />
     </video>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
@@ -32,70 +30,65 @@
         projectId: "videos-5e336",
         storageBucket: "videos-5e336.firebasestorage.app",
         messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af",
-        measurementId: "G-2H4SJNLD1R"
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
-
-    const video = document.getElementById('player');
-    let isRemoteUpdate = false;
-
-    // استقبال التحديثات (الرابط + الوقت + الحالة)
-    onValue(videoRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            isRemoteUpdate = true;
-            
-            // 1. تحديث رابط الفيديو إذا تغير في فيربيز
-            if (data.url && video.src !== data.url) {
-                video.src = data.url;
-                video.load(); // إعادة تحميل الفيديو الجديد
-            }
-
-            // 2. مزامنة الوقت
-            if (Math.abs(video.currentTime - data.time) > 1.5) {
-                video.currentTime = data.time;
-            }
-
-            // 3. مزامنة التشغيل والتوقف
-            if (data.status === "playing" && video.paused) {
-                video.play().catch(e => console.log("تفاعل مع الصفحة أولاً"));
-            } else if (data.status === "paused" && !video.paused) {
-                video.pause();
-            }
-            
-            setTimeout(() => { isRemoteUpdate = false; }, 500);
-        }
+    const videoElement = document.getElementById('player');
+    
+    // تهيئة Plyr بشكل صحيح
+    const player = new Plyr(videoElement, {
+        controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
     });
 
-    // إرسال الأوامر
-    video.onplay = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "playing", time: video.currentTime });
-        }
-    };
+    let isRemoteUpdate = false;
 
-    video.onpause = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "paused", time: video.currentTime });
-        }
-    };
+    onValue(videoRef, (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
 
-    video.onseeked = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { time: video.currentTime });
-        }
-    };
+        isRemoteUpdate = true;
 
+        // تحديث الرابط فوراً إذا تغير في فيربيز
+        if (data.url && player.source !== data.url) {
+            player.source = {
+                type: 'video',
+                sources: [{ src: data.url, type: 'video/mp4' }]
+            };
+        }
+
+        // مزامنة الوقت
+        if (Math.abs(player.currentTime - data.time) > 2) {
+            player.currentTime = data.time;
+        }
+
+        // مزامنة التشغيل
+        if (data.status === "playing" && player.paused) {
+            player.play().catch(() => {});
+        } else if (data.status === "paused" && !player.paused) {
+            player.pause();
+        }
+
+        setTimeout(() => { isRemoteUpdate = false; }, 600);
+    });
+
+    // إرسال التحديثات من المتصفح إلى فيربيز
+    player.on('play', () => {
+        if (!isRemoteUpdate) update(videoRef, { status: "playing", time: player.currentTime });
+    });
+
+    player.on('pause', () => {
+        if (!isRemoteUpdate) update(videoRef, { status: "paused", time: player.currentTime });
+    });
+
+    player.on('seeked', () => {
+        if (!isRemoteUpdate) update(videoRef, { time: player.currentTime });
+    });
 </script>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
-<script>
-    const player = new Plyr('#player');
-</script>
 
 </body>
 </html>
