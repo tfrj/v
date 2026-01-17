@@ -3,20 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل المزامنة اللحظية - Puffin</title>
+    <title>Puffin Player</title>
+    
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    
     <style>
-        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        body { background: #1a1a1a; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .container { width: 90%; max-width: 800px; }
-        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .plyr { border-radius: 12px; overflow: hidden; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <video id="player" playsinline controls>
-        </video>
+    <video id="player" playsinline controls src=""></video>
 </div>
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -33,47 +36,49 @@
         measurementId: "G-2H4SJNLD1R"
     };
 
+    // تشغيل فايربيز
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
-    const video = document.getElementById('player');
+    const videoElement = document.getElementById('player');
+    
+    // تشغيل شكل المشغل
+    const player = new Plyr(videoElement);
+
     let isRemoteUpdate = false;
 
-    // --- هذه هي الإضافة التي تتحكم بالفيديو عن بعد بدون تخريب الكود ---
+    // استقبال البيانات (الرابط، الوقت، الحالة)
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-            // 1. تحديث رابط الفيديو إذا تغير في Firebase
-            if (data.url && video.src !== data.url) {
-                video.src = data.url;
-            }
+        if (!data) return;
 
-            isRemoteUpdate = true;
-            
-            // 2. مزامنة الوقت والحالة
-            if (Math.abs(video.currentTime - data.time) > 1.5) {
-                video.currentTime = data.time;
-            }
-            if (data.status === "playing" && video.paused) {
-                video.play().catch(() => {});
-            } else if (data.status === "paused" && !video.paused) {
-                video.pause();
-            }
-            
-            setTimeout(() => { isRemoteUpdate = false; }, 500);
+        isRemoteUpdate = true;
+
+        // 1. تحديث الرابط إذا تغير
+        if (data.url && videoElement.src !== data.url) {
+            videoElement.src = data.url;
         }
+
+        // 2. مزامنة الوقت
+        if (Math.abs(videoElement.currentTime - data.time) > 1.5) {
+            videoElement.currentTime = data.time;
+        }
+
+        // 3. مزامنة التشغيل
+        if (data.status === "playing" && videoElement.paused) {
+            videoElement.play().catch(() => {});
+        } else if (data.status === "paused" && !videoElement.paused) {
+            videoElement.pause();
+        }
+
+        setTimeout(() => { isRemoteUpdate = false; }, 500);
     });
 
     // إرسال التحديثات عند التحكم اليدوي
-    video.onplay = () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: video.currentTime }); };
-    video.onpause = () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: video.currentTime }); };
-    video.onseeked = () => { if (!isRemoteUpdate) update(videoRef, { time: video.currentTime }); };
+    videoElement.onplay = () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: videoElement.currentTime }); };
+    videoElement.onpause = () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: videoElement.currentTime }); };
+    videoElement.onseeked = () => { if (!isRemoteUpdate) update(videoRef, { time: videoElement.currentTime }); };
 
-</script>
-
-<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
-<script>
-    const player = new Plyr('#player');
 </script>
 
 </body>
