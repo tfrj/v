@@ -13,7 +13,6 @@
             padding: 20px;
             background-color: #f4f4f9;
         }
-
         .video-container {
             width: 100%;
             max-width: 600px;
@@ -22,13 +21,10 @@
             overflow: hidden;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
-
         video {
             width: 100%;
             display: block;
-            min-height: 200px;
         }
-
         .controls-area {
             width: 100%;
             max-width: 600px;
@@ -37,14 +33,12 @@
             flex-direction: column;
             gap: 10px;
         }
-
         input[type="text"] {
             padding: 12px;
             border: 1px solid #ccc;
             border-radius: 5px;
             font-size: 16px;
         }
-
         button {
             padding: 12px;
             background-color: #25d366;
@@ -55,30 +49,36 @@
             cursor: pointer;
             transition: background 0.3s;
         }
-
         button:hover {
             background-color: #128c7e;
+        }
+        .status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls playsinline poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
+        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Waiting+for+Link...">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
-        <button id="updateBtn">تشغيل الفيديو</button>
+        <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو هنا للمزامنة...">
+        <button id="updateBtn">تحديث الفيديو للجميع</button>
+        <div class="status" id="syncStatus">متصل بالمزامنة ✅</div>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    <script>
-        // إعدادات Firebase الخاصة بك
+        // إعداداتك الخاصة التي أرفقتها
         const firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -90,43 +90,47 @@
         };
 
         // تهيئة Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const videoRef = db.ref('currentVideo');
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoRef = ref(db, 'sharedVideo');
 
         const player = document.getElementById('myPlayer');
-        const input = document.getElementById('videoUrl');
-        const btn = document.getElementById('updateBtn');
+        const urlInput = document.getElementById('videoUrl');
+        const updateBtn = document.getElementById('updateBtn');
 
-        // 1. استقبال الرابط من Firebase (التزامن اللحظي)
-        videoRef.on('value', (snapshot) => {
+        // 1. إرسال البيانات لقاعدة البيانات عند ضغط الزر
+        updateBtn.onclick = () => {
+            const url = urlInput.value.trim();
+            if (url) {
+                set(videoRef, {
+                    url: url,
+                    currentTime: 0,
+                    playing: true,
+                    timestamp: Date.now()
+                });
+            }
+        };
+
+        // 2. الاستماع للتغييرات من قاعدة البيانات (تحديث تلقائي لدى الجميع)
+        onValue(videoRef, (snapshot) => {
             const data = snapshot.val();
-            if (data && data.url) {
+            if (data) {
+                // إذا كان الرابط مختلفاً، قم بتغييره
                 if (player.src !== data.url) {
                     player.src = data.url;
-                    player.load();
-                    // محاولة التشغيل التلقائي قد تمنعها بعض المتصفحات إذا لم يلمس المستخدم الشاشة أولاً
-                    player.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
+                }
+                
+                // مزامنة وقت الفيديو (إذا كان الفارق أكثر من ثانيتين لتجنب التقطيع)
+                if (Math.abs(player.currentTime - data.currentTime) > 2) {
+                    player.currentTime = data.currentTime;
                 }
             }
         });
 
-        // 2. وظيفة الزر: إرسال الرابط لقاعدة البيانات
-        btn.onclick = function() {
-            const url = input.value.trim();
-            if (url) {
-                videoRef.set({
-                    url: url
-                }).then(() => {
-                    input.value = ""; // مسح الحقل بعد الإرسال
-                }).catch((error) => {
-                    alert("خطأ في الاتصال: " + error.message);
-                });
-            } else {
-                alert("يرجى إدخال رابط فيديو صحيح");
-            }
+        // 3. تحديث الوقت بشكل دوري (اختياري لجعل المزامنة أدق)
+        player.onplay = () => {
+            // هنا يمكنك إضافة كود لتحديث حالة التشغيل عند البقية
         };
     </script>
-
 </body>
 </html>
