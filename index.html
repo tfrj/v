@@ -3,89 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل فيديو بسيط</title>
+    <title>مشغل فيديو متزامن</title>
     <style>
-        body {
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            background-color: #f4f4f9;
-        }
-
-        .video-container {
-            width: 100%;
-            max-width: 600px;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-
-        video {
-            width: 100%;
-            display: block;
-        }
-
-        .controls-area {
-            width: 100%;
-            max-width: 600px;
-            margin-top: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        input[type="text"] {
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px; /* حجم مناسب للمس في الجوال */
-        }
-
-        button {
-            padding: 12px;
-            background-color: #25d366;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        button:hover {
-            background-color: #128c7e;
-        }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #f4f4f9; }
+        .video-container { width: 100%; max-width: 600px; background: #000; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        video { width: 100%; display: block; }
+        .controls-area { width: 100%; max-width: 600px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        input[type="text"] { padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
+        button { padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="video-container">
-        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Paste+Link+Below">
+        <video id="myPlayer" controls poster="https://via.placeholder.com/600x340?text=Waiting+for+Link...">
             Your browser does not support the video tag.
         </video>
     </div>
 
     <div class="controls-area">
-        <input type="text" id="videoUrl" placeholder="أضف رابط الفيديو هنا (mp4, webm)...">
-        <button onclick="loadVideo()">تشغيل الفيديو</button>
+        <input type="text" id="videoUrl" placeholder="أدخل رابط الفيديو للتحديث عند الجميع...">
+        <button id="updateBtn">تحديث الفيديو للكل</button>
     </div>
 
-    <script>
-        function loadVideo() {
-            const url = document.getElementById('videoUrl').value;
-            const player = document.getElementById('myPlayer');
-            
-            if (url) {
-                player.src = url;
-                player.play();
-            } else {
-                alert("يرجى إدخال رابط فيديو صحيح");
-            }
-        }
-    </script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
+        // إعدادات Firebase الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
+            authDomain: "videos-5e336.firebaseapp.com",
+            databaseURL: "https://videos-5e336-default-rtdb.firebaseio.com",
+            projectId: "videos-5e336",
+            storageBucket: "videos-5e336.firebasestorage.app",
+            messagingSenderId: "300218651134",
+            appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        };
+
+        // تهيئة Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const videoRef = ref(db, 'currentVideo');
+
+        const player = document.getElementById('myPlayer');
+        const input = document.getElementById('videoUrl');
+        const btn = document.getElementById('updateBtn');
+
+        // 1. التزامن اللحظي: الاستماع لأي تغيير في قاعدة البيانات
+        onValue(videoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.url) {
+                // إذا كان الرابط جديداً، قم بتحديث المشغل
+                if (player.src !== data.url) {
+                    player.src = data.url;
+                    console.log("تم تحديث الفيديو من قاعدة البيانات");
+                }
+            }
+        });
+
+        // 2. إرسال رابط جديد لقاعدة البيانات عند الضغط على الزر
+        btn.onclick = function() {
+            const newUrl = input.value;
+            if (newUrl) {
+                set(videoRef, {
+                    url: newUrl
+                }).then(() => {
+                    alert("تم التحديث بنجاح!");
+                    input.value = "";
+                }).catch((error) => {
+                    alert("خطأ: تأكد من إعدادات الحماية (Rules) في Firebase");
+                });
+            }
+        };
+    </script>
 </body>
 </html>
