@@ -103,7 +103,6 @@
     </div>
 
     <script>
-        // 1. إعدادات Firebase الخاصة بك
         var firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -137,7 +136,7 @@
             }
         }
 
-        // استقبال التحديثات اللحظية
+        // استقبال التحديثات اللحظية (تعديل منطق المزامنة)
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data && data.url) {
@@ -146,17 +145,18 @@
                     playMedia(data.url);
                 }
                 
-                // المزامنة للمشاهدين فقط
                 if (!isAdmin) {
-                    // مزامنة الوقت إذا فرق أكثر من ثانيتين
-                    if (Math.abs(videoElement.currentTime - data.currentTime) > 2) {
-                        videoElement.currentTime = data.currentTime;
-                    }
-                    // مزامنة حالة التشغيل والإيقاف
+                    // مزامنة حالة الوقوف والتشغيل فوراً
                     if (data.paused && !videoElement.paused) {
                         videoElement.pause();
                     } else if (!data.paused && videoElement.paused) {
                         videoElement.play().catch(function(){});
+                    }
+
+                    // تقليل الفجوة الزمنية إلى ثانية واحدة لدقة أعلى
+                    var timeDiff = Math.abs(videoElement.currentTime - data.currentTime);
+                    if (timeDiff > 1) {
+                        videoElement.currentTime = data.currentTime;
                     }
                 }
                 document.getElementById('connectionStatus').innerText = "متصل بنجاح ✅";
@@ -174,19 +174,19 @@
             }
         }
 
-        // مستمعات الأحداث للآدمن لضمان اللحظية
-        videoElement.addEventListener('play', broadcastStatus);
-        videoElement.addEventListener('pause', broadcastStatus);
-        videoElement.addEventListener('seeking', broadcastStatus);
-        
-        // تحديث مستمر للوقت للآدمن (اختياري لضمان دقة التوقيت كل ثانية)
+        // ربط جميع أحداث التفاعل لضمان اللحظية
+        videoElement.onplay = broadcastStatus;
+        videoElement.onpause = broadcastStatus;
+        videoElement.onseeking = broadcastStatus;
+        videoElement.onseeked = broadcastStatus;
+
+        // تحديث دوري سريع (كل ثانية) لضمان عدم ضياع المزامنة
         setInterval(function() {
             if (isAdmin && !videoElement.paused) {
                 broadcastStatus();
             }
-        }, 2000);
+        }, 1000);
 
-        // الأزرار
         document.getElementById('loginBtn').addEventListener('click', function() {
             if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
