@@ -2,23 +2,31 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>بث Puffin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل المزامنة اللحظية - Puffin</title>
+    
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    
     <style>
-        body { background: #000; margin: 0; padding: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        video { width: 100%; max-height: 100vh; background: #000; }
+        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { width: 90%; max-width: 800px; }
+        /* تحسين استجابة المشغل في Puffin */
+        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
 
-<video id="puffinPlayer" controls autoplay playsinline>
-    <source id="videoSource" src="" type="video/mp4">
-    متصفحك لا يدعم التشغيل.
-</video>
+<div class="container">
+    <video id="player" playsinline controls>
+        <source src="https://abra--5e4bd524.api.cosmic-crab.buzz/93743992fdffe15b7e075a2e81c5b05c5072c1bc/%D8%A7%D8%B1%D8%B4%D9%8A%D9%81%20%D9%82%D9%86%D8%A7%D8%A9%20%D8%B3%D8%A8%D9%8A%D8%B3%D8%AA%D9%88%D9%86%20%D9%85%D9%86%20%D8%B3%D9%86%D8%A9%202000%20%D8%A7%D9%84%D9%89%202001/aaalan-bokymon-algzaa-alsads-aal-kna-nyo-ty-fy.mp4?api-key=8acbcf1e-732c-4574-a3bf-27e6a85b86f1&download=true&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Njg3Njc4NzgsInJhdGUiOiI1TSIsInJvbGUiOiJmcmVlIiwic2Vzc2lvbklEIjoiTVRjMk5qTXpORGMxTW54T2QzZEJUa1pzVUZORk5VUlJWbWhZVlZVMVVGTlZiRk5VVm1kNVYxWnNVMVpGUmtWU1JWRXdUVEE1V0ZacVVrbE5hazVLVTBVMVNGTlZNVWRXYTNoaFRXc3hSVlpFV2tkTk1FVTlmUFhVQTl0VjJsOURkcEh0RGEzVjJoTlM1N1lzV3Rfd0s2VW5sUGl6N2tOUyIsImRvbWFpbiI6IndlYnRvci5pbyIsImFnZW50IjoiTW96aWxsYS81LjAgKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTBfMTVfNykgQXBwbGVXZWJLaXQvNjA1LjEuMTUgKEtIVE1MLCBsaWtlIEdlY2tvKSBWZXJzaW9uLzE2LjYuMSBTYWZhcmkvNjA1LjEuMTUiLCJyZW1vdGVBZGRyZXNzIjoiMjAwMToxNmE0OjIxODoxM2YwOjcwNzI6OWFhYjo5NjZlOjNmNDUifQ.LEJGQ_3_wuZ58W9-151hcINBHfpwKPGU8yHJJlNTPLo" type="video/mp4" />
+    </video>
+</div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
+    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -26,38 +34,68 @@
         projectId: "videos-5e336",
         storageBucket: "videos-5e336.firebasestorage.app",
         messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af",
+        measurementId: "G-2H4SJNLD1R"
     };
 
+    // تهيئة Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    const video = document.getElementById('puffinPlayer');
-    const source = document.getElementById('videoSource');
+    // تهيئة المشغل
+    const video = document.getElementById('player');
+    let isRemoteUpdate = false; // لمنع التكرار اللانهائي
 
+    // 1. استقبال التحديثات من الآخرين
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // تحديث الرابط إذا اختلف
-            if (source.src !== data.url) {
-                source.src = data.url;
-                video.load();
-            }
+            isRemoteUpdate = true;
             
-            // مزامنة الوقت
-            if (Math.abs(video.currentTime - data.time) > 2) {
+            // مزامنة الوقت إذا كان الفارق أكثر من ثانية
+            if (Math.abs(video.currentTime - data.time) > 1.5) {
                 video.currentTime = data.time;
             }
 
-            // مزامنة الحالة
-            if (data.status === "playing") {
-                video.play().catch(() => {});
-            } else {
+            // مزامنة التشغيل والتوقف
+            if (data.status === "playing" && video.paused) {
+                video.play().catch(e => console.log("تحتاج للتفاعل مع الصفحة أولاً"));
+            } else if (data.status === "paused" && !video.paused) {
                 video.pause();
             }
+            
+            setTimeout(() => { isRemoteUpdate = false; }, 500);
         }
     });
+
+    // 2. إرسال الأوامر عند ضغطك على الأزرار
+    video.onplay = () => {
+        if (!isRemoteUpdate) {
+            update(videoRef, { status: "playing", time: video.currentTime });
+        }
+    };
+
+    video.onpause = () => {
+        if (!isRemoteUpdate) {
+            update(videoRef, { status: "paused", time: video.currentTime });
+        }
+    };
+
+    // مزامنة عند تحريك شريط الوقت
+    video.onseeked = () => {
+        if (!isRemoteUpdate) {
+            update(videoRef, { time: video.currentTime });
+        }
+    };
+
 </script>
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+<script>
+    // تشغيل التنسيق الجمالي للمشغل
+    const player = new Plyr('#player');
+</script>
+
 </body>
 </html>
