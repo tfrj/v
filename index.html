@@ -4,29 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مشغل المزامنة اللحظية - Puffin</title>
-    
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-    
     <style>
-        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        body { background: #1a1a1a; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; }
         .container { width: 90%; max-width: 800px; }
-        /* تحسين استجابة المشغل في Puffin */
         .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .admin-panel { margin-top: 20px; display: flex; gap: 10px; width: 90%; max-width: 800px; }
+        input { flex: 1; padding: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px 20px; border-radius: 5px; border: none; background: #00b3ff; color: white; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <video id="player" playsinline controls>
-        <source src="https://abra--5e4bd524.api.cosmic-crab.buzz/93743992fdffe15b7e075a2e81c5b05c5072c1bc/%D8%A7%D8%B1%D8%B4%D9%8A%D9%81%20%D9%82%D9%86%D8%A7%D8%A9%20%D8%B3%D8%A8%D9%8A%D8%B3%D8%AA%D9%88%D9%86%20%D9%85%D9%86%20%D8%B3%D9%86%D8%A9%202000%20%D8%A7%D9%84%D9%89%202001/aaalan-bokymon-algzaa-alsads-aal-kna-nyo-ty-fy.mp4?api-key=8acbcf1e-732c-4574-a3bf-27e6a85b86f1&download=true&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3Njg3Njc4NzgsInJhdGUiOiI1TSIsInJvbGUiOiJmcmVlIiwic2Vzc2lvbklEIjoiTVRjMk5qTXpORGMxTW54T2QzZEJUa1pzVUZORk5VUlJWbWhZVlZVMVVGTlZiRk5VVm1kNVYxWnNVMVpGUmtWU1JWRXdUVEE1V0ZacVVrbE5hazVLVTBVMVNGTlZNVWRXYTNoaFRXc3hSVlpFV2tkTk1FVTlmUFhVQTl0VjJsOURkcEh0RGEzVjJoTlM1N1lzV3Rfd0s2VW5sUGl6N2tOUyIsImRvbWFpbiI6IndlYnRvci5pbyIsImFnZW50IjoiTW96aWxsYS81LjAgKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTBfMTVfNykgQXBwbGVXZWJLaXQvNjA1LjEuMTUgKEtIVE1MLCBsaWtlIEdlY2tvKSBWZXJzaW9uLzE2LjYuMSBTYWZhcmkvNjA1LjEuMTUiLCJyZW1vdGVBZGRyZXNzIjoiMjAwMToxNmE0OjIxODoxM2YwOjcwNzI6OWFhYjo5NjZlOjNmNDUifQ.LEJGQ_3_wuZ58W9-151hcINBHfpwKPGU8yHJJlNTPLo" type="video/mp4" />
+        <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4" />
     </video>
 </div>
 
+<div class="admin-panel">
+    <input type="text" id="newLink" placeholder="ضع رابط الفيديو الجديد هنا...">
+    <button id="updateBtn">تغيير للكل</button>
+</div>
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    // إعدادات Firebase الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
         authDomain: "videos-5e336.firebaseapp.com",
@@ -34,67 +39,57 @@
         projectId: "videos-5e336",
         storageBucket: "videos-5e336.firebasestorage.app",
         messagingSenderId: "300218651134",
-        appId: "1:300218651134:web:4bd24df8e555e62828f0af",
-        measurementId: "G-2H4SJNLD1R"
+        appId: "1:300218651134:web:4bd24df8e555e62828f0af"
     };
 
-    // تهيئة Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const videoRef = ref(db, 'sharedVideo');
 
-    // تهيئة المشغل
-    const video = document.getElementById('player');
-    let isRemoteUpdate = false; // لمنع التكرار اللانهائي
+    // تهيئة مشغل Plyr
+    const player = new Plyr('#player');
+    const videoElement = document.getElementById('player');
+    let isRemoteUpdate = false;
 
-    // 1. استقبال التحديثات من الآخرين
+    // --- استقبال التغييرات ---
     onValue(videoRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
             isRemoteUpdate = true;
-            
-            // مزامنة الوقت إذا كان الفارق أكثر من ثانية
-            if (Math.abs(video.currentTime - data.time) > 1.5) {
-                video.currentTime = data.time;
+
+            // 1. تحديث الرابط إذا كان مختلفاً (بدون تخريب المشغل)
+            if (data.url && videoElement.src !== data.url) {
+                player.source = {
+                    type: 'video',
+                    sources: [{ src: data.url, type: 'video/mp4' }]
+                };
             }
 
-            // مزامنة التشغيل والتوقف
-            if (data.status === "playing" && video.paused) {
-                video.play().catch(e => console.log("تحتاج للتفاعل مع الصفحة أولاً"));
-            } else if (data.status === "paused" && !video.paused) {
-                video.pause();
-            }
-            
-            setTimeout(() => { isRemoteUpdate = false; }, 500);
+            // 2. مزامنة الوقت والحالة
+            setTimeout(() => {
+                if (Math.abs(player.currentTime - data.time) > 1.5) {
+                    player.currentTime = data.time;
+                }
+                if (data.status === "playing") player.play();
+                else player.pause();
+                isRemoteUpdate = false;
+            }, 500); // تأخير بسيط لضمان تحميل الفيديو الجديد
         }
     });
 
-    // 2. إرسال الأوامر عند ضغطك على الأزرار
-    video.onplay = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "playing", time: video.currentTime });
+    // --- إرسال التحديثات ---
+    player.on('play', () => { if (!isRemoteUpdate) update(videoRef, { status: "playing", time: player.currentTime }); });
+    player.on('pause', () => { if (!isRemoteUpdate) update(videoRef, { status: "paused", time: player.currentTime }); });
+    player.on('seeked', () => { if (!isRemoteUpdate) update(videoRef, { time: player.currentTime }); });
+
+    // --- وظيفة زر تغيير الرابط ---
+    document.getElementById('updateBtn').onclick = () => {
+        const link = document.getElementById('newLink').value;
+        if (link) {
+            update(videoRef, { url: link, time: 0, status: "paused" });
+            alert("تم إرسال الرابط الجديد للجميع!");
         }
     };
-
-    video.onpause = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { status: "paused", time: video.currentTime });
-        }
-    };
-
-    // مزامنة عند تحريك شريط الوقت
-    video.onseeked = () => {
-        if (!isRemoteUpdate) {
-            update(videoRef, { time: video.currentTime });
-        }
-    };
-
-</script>
-
-<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
-<script>
-    // تشغيل التنسيق الجمالي للمشغل
-    const player = new Plyr('#player');
 </script>
 
 </body>
