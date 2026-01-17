@@ -3,42 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مشغل الفيديو المشترك - المزامنة الكاملة</title>
+    <title>مشغل الفيديو - تحكم الإدارة الكامل</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; background-color: #f4f4f9; margin: 0; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 30px; background-color: #f4f4f9; margin: 0; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 90%; max-width: 600px; text-align: center; margin-bottom: 20px; }
         input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
-        button { padding: 12px 25px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        video { width: 100%; border-radius: 8px; background: #000; min-height: 200px; }
-        #adminSection { display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
-        .status { color: #666; font-size: 0.9em; margin-bottom: 10px; }
+        button { padding: 12px 25px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        video { width: 100%; border-radius: 8px; background: #000; min-height: 250px; }
+        #adminSection { display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; background: #f9fff9; border-radius: 8px; }
+        .status { color: #666; font-size: 0.9em; margin-bottom: 10px; font-weight: bold; }
+        .admin-label { color: red; font-size: 12px; margin-top: 5px; display: block; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>البث المباشر المزامر</h2>
-        <p class="status" id="connectionStatus">جاري الاتصال...</p>
+        <h2>بث التحكم المباشر</h2>
+        <p class="status" id="connectionStatus">جاري الاتصال بالقاعدة...</p>
         <video id="myPlayer" controls autoplay playsinline>
             <source src="" type="video/mp4">
             متصفحك لا يدعم مشغل الفيديو.
         </video>
+        <span id="roleLabel" style="font-size: 12px; color: #888;">وضع المشاهدة فقط</span>
     </div>
 
     <div class="card">
         <div id="loginSection">
-            <h3>إدارة الفيديو والمزامنة</h3>
-            <input type="password" id="passwordInput" placeholder="أدخل كلمة السر">
+            <h3>لوحة تحكم الإدارة</h3>
+            <input type="password" id="passwordInput" placeholder="كلمة السر للتحكم">
             <br>
-            <button id="loginBtn">دخول</button>
+            <button id="loginBtn">تفعيل وضع الإدارة</button>
         </div>
 
         <div id="adminSection">
-            <p style="color: green; font-weight: bold;">وضع الإدارة والمزامنة اللحظية نشط</p>
-            <input type="text" id="videoUrl" placeholder="ضع رابط الفيديو (MP4) هنا">
+            <span class="admin-label">🔴 أنت الآن تتحكم في أجهزة الجميع</span>
+            <input type="text" id="videoUrl" placeholder="رابط الفيديو الجديد (MP4)">
             <br>
-            <button id="updateBtn">تحديث للجميع</button>
-            <p style="font-size: 12px; color: #888;">عندما تتحكم في الفيديو (تشغيل/إيقاف/تقديم) سيتغير عند الجميع فوراً.</p>
+            <button id="updateBtn">تغيير الفيديو للكل</button>
+            <p style="font-size: 11px; color: #555; margin-top: 10px;">
+                أي حركة تقوم بها (تقديم، تأخير، إيقاف) ستنفذ لحظياً عند الجميع.
+            </p>
         </div>
     </div>
 
@@ -46,7 +50,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // 1. إعدادات Firebase الخاصة بك
         var firebaseConfig = {
             apiKey: "AIzaSyAjTD-OJBUYewp5bqV0iVh4Rxp5zjBsU54",
             authDomain: "videos-5e336.firebaseapp.com",
@@ -57,57 +60,52 @@
             appId: "1:300218651134:web:4bd24df8e555e62828f0af"
         };
 
-        // 2. تشغيل Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        firebase.initializeApp(firebaseConfig);
         var db = firebase.database();
         var videoRef = db.ref('sharedVideo');
         var videoElement = document.getElementById('myPlayer');
         var isAdmin = false;
 
-        // 3. استقبال التحديثات من القاعدة (لأصدقائك وللمتصفحات الأخرى)
+        // 1. استقبال الأوامر اللحظية (للمشاهدين)
         videoRef.on('value', function(snapshot) {
             var data = snapshot.val();
             if (data) {
-                // تحديث الرابط
+                // إذا تغير الرابط
                 if (videoElement.src !== data.url && data.url) {
                     videoElement.src = data.url;
                     videoElement.load();
                 }
 
-                // تحديث الوقت إذا كان الفارق كبيراً (أكثر من ثانيتين)
-                if (Math.abs(videoElement.currentTime - data.currentTime) > 2) {
-                    videoElement.currentTime = data.currentTime;
-                }
-
-                // تحديث حالة التشغيل والتوقف
-                if (data.paused && !videoElement.paused) {
-                    videoElement.pause();
-                } else if (!data.paused && videoElement.paused) {
-                    videoElement.play().catch(function(e){});
+                // مزامنة الوقت (فقط إذا لم يكن الشخص هو الآدمن لتجنب التكرار)
+                if (!isAdmin) {
+                    if (Math.abs(videoElement.currentTime - data.currentTime) > 1) {
+                        videoElement.currentTime = data.currentTime;
+                    }
+                    if (data.paused && !videoElement.paused) videoElement.pause();
+                    if (!data.paused && videoElement.paused) videoElement.play().catch(function(e){});
                 }
                 
-                document.getElementById('connectionStatus').innerText = "متصل - المزامنة تعمل ✅";
+                document.getElementById('connectionStatus').innerText = "متصل بالمزامنة اللحظية ✅";
             }
         });
 
-        // 4. وظيفة إرسال الحالة (يؤديها المدير فقط عند تغيير شيء في المشغل)
-        function sendStatusToFirebase() {
-            if (!isAdmin) return;
-            videoRef.update({
-                currentTime: videoElement.currentTime,
-                paused: videoElement.paused,
-                lastUpdate: Date.now()
-            });
+        // 2. إرسال الأوامر اللحظية (الآدمن فقط)
+        function broadcastStatus() {
+            if (isAdmin) {
+                videoRef.update({
+                    currentTime: videoElement.currentTime,
+                    paused: videoElement.paused,
+                    lastAction: Date.now()
+                });
+            }
         }
 
-        // ربط أحداث المشغل بالمدير
-        videoElement.onplay = sendStatusToFirebase;
-        videoElement.onpause = sendStatusToFirebase;
-        videoElement.onseeking = sendStatusToFirebase;
+        // أحداث التحكم اللحظي للمدير
+        videoElement.onplay = broadcastStatus;
+        videoElement.onpause = broadcastStatus;
+        videoElement.onseeking = broadcastStatus; 
 
-        // 5. زر تحديث الرابط (المدير)
+        // تحديث الرابط الجديد
         document.getElementById('updateBtn').addEventListener('click', function() {
             var newUrl = document.getElementById('videoUrl').value;
             if (newUrl) {
@@ -115,22 +113,21 @@
                     url: newUrl,
                     currentTime: 0,
                     paused: false,
-                    lastUpdate: Date.now()
-                }).then(function() {
-                    alert("تم تحديث الرابط للجميع!");
+                    lastAction: Date.now()
                 });
             }
         });
 
-        // 6. زر الدخول
+        // تفعيل وضع المدير
         document.getElementById('loginBtn').addEventListener('click', function() {
-            var pass = document.getElementById('passwordInput').value;
-            if (pass === "1234") {
+            if (document.getElementById('passwordInput').value === "1234") {
                 isAdmin = true;
                 document.getElementById('loginSection').style.display = 'none';
                 document.getElementById('adminSection').style.display = 'block';
+                document.getElementById('roleLabel').innerText = "وضع المدير: أنت المتحكم الآن";
+                document.getElementById('roleLabel').style.color = "red";
             } else {
-                alert("كلمة السر خاطئة!");
+                alert("كلمة السر خطأ");
             }
         });
     </script>
